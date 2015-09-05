@@ -1,0 +1,24 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C# Express 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicChessPuzzles", "MagicChessPuzzles\MagicChessPuzzles\MagicChessPuzzles.csproj", "{42F2ED1C-6CB6-49F0-BA7C-07798FF8F473}"
+EndProject
+Project("{96E2B04D-8817-42C6-938A-82C39BA4D311}") = "MagicChessPuzzlesContent", "MagicChessPuzzles\MagicChessPuzzlesContent\MagicChessPuzzlesContent.contentproj", "{871EFBB8-B31C-4AB4-8C16-EACE1C8DED2E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{42F2ED1C-6CB6-49F0-BA7C-07798FF8F473}.Debug|x86.ActiveCfg = Debug|x86
+		{42F2ED1C-6CB6-49F0-BA7C-07798FF8F473}.Debug|x86.Build.0 = Debug|x86
+		{42F2ED1C-6CB6-49F0-BA7C-07798FF8F473}.Release|x86.ActiveCfg = Release|x86
+		{42F2ED1C-6CB6-49F0-BA7C-07798FF8F473}.Release|x86.Build.0 = Release|x86
+		{871EFBB8-B31C-4AB4-8C16-EACE1C8DED2E}.Debug|x86.ActiveCfg = Debug|x86
+		{871EFBB8-B31C-4AB4-8C16-EACE1C8DED2E}.Release|x86.ActiveCfg = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
