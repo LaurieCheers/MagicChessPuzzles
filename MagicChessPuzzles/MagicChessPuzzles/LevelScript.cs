@@ -97,13 +97,13 @@ namespace MagicChessPuzzles
             return (spawns.Count+1 < gameState.turnNumber);
         }
 
-        public void Apply(GameState gameState)
+        public void Apply(GameState gameState, SpriteAnimation animation)
         {
             if (gameState.turnNumber - 1 < spawns.Count)
             {
                 foreach (MinionType spawnType in spawns[gameState.turnNumber - 1])
                 {
-                    gameState.CreateEnemy(spawnType, levelType.spawnPoint);
+                    gameState.CreateEnemy(spawnType, levelType.spawnPoint, animation);
                 }
             }
         }
@@ -113,12 +113,13 @@ namespace MagicChessPuzzles
             if (position.X < 0 || position.Y < 0 | position.X >= levelType.levelSize.X || position.Y >= levelType.levelSize.Y)
                 return true;
 
+
             switch (targetType)
             {
                 case TargetType.path:
-                    return levelType.spawnPoint.Y != position.Y;
+                    return levelType.spawnPoint.Y != position.Y || position.X == levelType.spawnPoint.X;
                 case TargetType.empty:
-                    return levelType.spawnPoint.Y == position.Y;
+                    return position == levelType.spawnPoint;
                 default:
                     return false;
             }

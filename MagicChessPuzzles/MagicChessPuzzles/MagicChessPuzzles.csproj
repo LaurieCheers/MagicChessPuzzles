@@ -119,6 +119,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="Game1.cs" />
     <Compile Include="SpellCard.cs" />
+    <Compile Include="SpriteAnimation.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Game.ico" />

@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using System.Diagnostics;
 
 namespace MagicChessPuzzles
 {
@@ -114,11 +115,29 @@ namespace MagicChessPuzzles
             this.permanentStats = mtype.stats;
         }
 
+        public override SpriteEffects spriteEffects
+        {
+            get
+            {
+                return isEnemy? SpriteEffects.FlipHorizontally: SpriteEffects.None;
+            }
+        }
+
+        public override Vector2 drawPos
+        { get {
+            return new Vector2
+            (
+                base.drawPos.X - (slow_movedHalfWay ? 8.0f : (stats.slow ? -8.0f : 0.0f)),
+                base.drawPos.Y + 20.0f - type.texture.Height
+            );
+        }}
+
         public override void Draw(SpriteBatch spriteBatch)
         {
-            spriteBatch.Draw(type.texture, new Rectangle((int)(screenPos.X - (slow_movedHalfWay ? 8.0f : (stats.slow? -8.0f: 0.0f))), (int)(screenPos.Y + 20.0f - type.texture.Height), type.texture.Width, type.texture.Height), null, Color.White, 0.0f, Vector2.Zero, isEnemy ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.0f);
+            Vector2 pos = drawPos;
+            spriteBatch.Draw(type.texture, new Rectangle((int)pos.X, (int)pos.Y, type.texture.Width, type.texture.Height), null, Color.White, 0.0f, Vector2.Zero, isEnemy ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.0f);
             //            spriteBatch.DrawString(Game1.font, type.name, pos, Color.Blue);
-            spriteBatch.DrawString(Game1.font, "" + this.stats.health, screenPos + new Vector2(16, 20), Color.LightGreen);
+            spriteBatch.DrawString(Game1.font, "" + this.stats.health, pos + new Vector2(16, 20), Color.LightGreen);
         }
 
         public override void DrawMouseOver(SpriteBatch spriteBatch)
@@ -137,7 +156,7 @@ namespace MagicChessPuzzles
             tooltipText.Add("Health " + stats.health + " (of " + stats.maxHealth + ")");
             tooltipText.Add(mtype.description);
 
-            Vector2 popupPos = screenPos + new Vector2(35, -14);
+            Vector2 popupPos = drawPos + new Vector2(35, -14);
             LayeredImageGfx.Tooltip.DrawTooltip(spriteBatch, Game1.font, Game1.tooltipBG, tooltipText, popupPos);
         }
 
@@ -155,22 +174,31 @@ namespace MagicChessPuzzles
             }
         }
 
-        public void Attack(GameState gameState, Minion target)
+        public void Attack(GameState gameState, Minion target, SpriteAnimation animation)
         {
+            if (animation != null)
+            {
+                Vector2 basePos = drawPos;
+                Vector2 targetPos = target.drawPos;
+                targetPos = new Vector2(targetPos.X, targetPos.Y+target.type.texture.Height - type.texture.Height);
+                Vector2 attackPos = basePos + (targetPos - basePos) * 0.5f;
+                animation.AddMove(AnimationPhase.Attack, basePos, attackPos, type.texture, Color.White, spriteEffects);
+                animation.AddMove(AnimationPhase.Recover, attackPos, basePos, type.texture, Color.White, spriteEffects);
+            }
             target.TakeDamage(gameState, stats.attack, this);
         }
 
-        public bool CheckAttack(GameState gameState, Point attackPos)
+        public bool CheckAttack(GameState gameState, Point attackPos, SpriteAnimation animation)
         {
             Minion m = gameState.getMinionAt(attackPos);
             if (m == null || isEnemy == m.isEnemy)
                 return false;
 
-            Attack(gameState, m);
+            Attack(gameState, m, animation);
             return true;
         }
 
-        public void CheckAttacks(GameState gameState)
+        public bool CheckAttacks(GameState gameState, SpriteAnimation animation)
         {
             Point[] attackOffsets = GameState.adjacentOffsets;
             switch (stats.range)
@@ -183,13 +211,17 @@ namespace MagicChessPuzzles
                     break;
             }
 
-            foreach (Point p in attackOffsets)
+            if (stats.attack > 0)
             {
-                if (CheckAttack(gameState, new Point(position.X + p.X, position.Y + p.Y)))
+                foreach (Point p in attackOffsets)
                 {
-                    return;
+                    if (CheckAttack(gameState, new Point(position.X + p.X, position.Y + p.Y), animation))
+                    {
+                        return true;
+                    }
                 }
             }
+            return false;
         }
 
         public bool TakeAStep()

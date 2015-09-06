@@ -35,6 +35,7 @@ namespace MagicChessPuzzles
         List<LevelScript> levelScripts;
         GameState gameStateOnSkip;
         int currentLevelIdx;
+        SpriteAnimation animation = new SpriteAnimation();
 
         public Game1()
         {
@@ -126,6 +127,7 @@ namespace MagicChessPuzzles
         protected override void Update(GameTime gameTime)
         {
             inputState.Update();
+            animation.Update(gameTime);
 
             if (gameStates.Last().gameEndState == GameState.GameEndState.GameWon)
             {
@@ -165,7 +167,13 @@ namespace MagicChessPuzzles
                 if (oldGameState.CanPlayCard(c, caster, position))
                 {
                     GameState newGameState = new GameState(gameStates.Last());
-                    newGameState.PlayCard(c, caster, position);
+                    
+                    animation.Clear();
+                    animation.AddPhase(0.1f); //attack
+                    animation.AddPhase(0.2f); //recover
+                    animation.AddPhase(0.5f); //move
+
+                    newGameState.PlayCard(c, caster, position, animation);
                     gameStates.Add(newGameState);
                     gameStateOnSkip = newGameState.GetGameStateOnSkip();
                 }
@@ -188,7 +196,10 @@ namespace MagicChessPuzzles
             spriteBatch.Begin();
 
             GameState gameState = gameStates.Last();
-            gameState.Draw(spriteBatch, gameStateOnSkip);
+
+            gameState.Draw(spriteBatch, gameStateOnSkip, !animation.animating);
+            animation.Draw(spriteBatch);
+
             foreach (CardCatalog catalog in catalogs)
             {
                 catalog.Draw(spriteBatch, gameStates.Last());

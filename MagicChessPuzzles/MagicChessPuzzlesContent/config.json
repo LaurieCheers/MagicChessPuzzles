@@ -28,14 +28,17 @@
 		// Can we get enough variety in elementals and spirits..?
 		// Not worth worrying about for now.
 		"wizard":{"name":"Archmage", "texture":"wizard", "health":3, "attack":0, "whenDies":["losegame"], "description":"When killed, you lose the game."},
+		"necromancer":{"name":"Necromancer", "texture":"necromancer", "health":1, "attack":2, "spells":"necro", "description":"Obsessed with death. But not in an emo way."},
+		"shaman":{"name":"Shaman", "texture":"shaman", "health":3, "attack":2, "spells":"shaman", "description":"Proud wielder of nature magic."},
+		"artificer":{"name":"Artificer", "texture":"artificer", "health":2, "attack":1, "spells":"artifice", "description":"Nerrrrrrrrrrrrd."},
 		"sprite":{"name":"Sprite", "texture":"sprite", "health":3, "attack":1, "description":"Innocent fluttery creature"},
 		"spearman":{"name":"Spearman", "texture":"celt", "health":5, "attack":1, "range":"nearby", "description":"Can attack diagonally"},
+
 		"archer":{"name":"Sentry", "texture":"elf", "health":1, "attack":1, "range":"knight", "description":"Can attack up to a knight's move away"},
 		"barbarian":{"name":"Barbarian", "texture":"barbarian", "health":3, "attack":3, "description":"Don't call him the C-word."},
 		"replicant":{"name":"Replicator Ooze", "texture":"slime", "health":1, "attack":0, "whenDies":["minion", "KILLER"], "description":"When killed, spawns a copy of the killer."},
+		"hedge":{"name":"Hedge", "texture":"hedge", "health":8, "attack":0, "description":"Basically a wall with leaves."},
 		"barrier":{"name":"Barrier", "texture":"barrier", "health":8, "attack":0, "description":"The strong, silent type."},
-		"necromancer":{"name":"Necromancer", "texture":"necromancer", "health":1, "attack":2, "spells":"necro", "description":"Obsessed with death. But not in an emo way."},
-		"shaman":{"name":"Shaman", "texture":"shaman", "health":3, "attack":2, "spells":"shaman", "description":"Proud wielder of nature magic."},
 		"skeleton":{"name":"Skeleton", "texture":"skeleton", "health":4, "attack":2, "description":"He's all skin and bones. Well, bones."},
 		"bear":{"name":"Bear", "texture":"bear", "health":4, "attack":4, "description":"It's a bear all right."},
 
@@ -44,10 +47,53 @@
 		"automaton":{"name":"Automaton", "texture":"automaton", "health":1, "attack":3, "whenDies":["gain", {"metal":1}], "description":"Drops 1 scrap metal when killed."},
 		"ghoul":{"name":"Ghoul", "texture":"ghoul", "health":5, "attack":3, "description":"Undead. And sensitive about it."},
 		"ogre":{"name":"Ogre", "texture":"ogre", "health":15, "attack":3, "description":"He's just big-boned."},
-		"treeman":{"name":"Treeman", "texture":"treeman", "health":50, "attack":2, "slow":true, "description":"A slow-moving damage sponge"},
+		"treeman":{"name":"Treeman", "texture":"treeman", "health":50, "attack":2, "slow":true, "description":"Slow"},
 		"gorgon":{"name":"Gorgon", "texture":"gorgon", "health":20, "attack":1, "slow":true, "ongoing":["aura", "lowerTo", "attack", 1], "description":"Adjacent minions have attack 1."},
 		"fungus":{"name":"Fungus", "texture":"spawn", "health":1, "attack":1, "description":"Newborn! And just look how cute he is."},
-		"shambler":{"name":"Fungal Shambler", "texture":"mutant", "health":20, "attack":3, "slow":true, "ongoing_late":["area", "adjacent", ["minion", "fungus"]], "description":"Spawns a 1/1 fungus in every adjacent space each turn"},
+		"shambler":{"name":"Fungal Shambler", "texture":"mutant", "health":20, "attack":3, "slow":true, "ongoing_late":["area", "adjacent", ["minion", "fungus"]], "description":"Slow; Spawns a 1/1 fungus in every adjacent space each turn"},
+	},
+
+	"spells":
+	{
+		"necro":
+		[
+			{"name":"Raise Dead", "target":"empty", "type":"minion", "texture":"skeleton", "effect":["minion", "skeleton"], "description":"Summon a 2/4 skeleton"},
+			{"name":"Skeleton Archer", "target":"empty", "type":"minion", "texture":"elf", "cost":{"mana": 1}, "effect":["minion", "archer"], "description":"Summon a 1/1 archer that can attack up to 3 squares away"},
+		],
+
+		"shaman":
+		[
+			{"name":"Bearform", "type":"minion", "texture":"bear", "effect":["transform", "bear"], "description":"The shaman transforms into a 4/4 bear"},
+			{"name":"Sudden Growth", "target":"path", "type":"minion", "texture":"hedge", "effect":["minion", "hedge"], "description":"Summon a hedge (0/8)"},
+			{"name":"Barbarian", "target":"empty", "type":"minion", "texture":"barbarian", "cost":{"fire": 1}, "effect":["minion", "barbarian"], "description":"Summon a 3/3 barbarian"},
+		],
+
+		"artifice":
+		[
+			{"name":"Serrated Blades", "target":"empty", "type":"production", "texture":"banner_red", "cost":{"metal": 1}, "ongoing":["aura", "mul", "attack", 2], "description":"All nearby minions do double damage" },
+		],
+
+		"main":
+		[
+			{"name":"Rewind", "type":"special", "texture":"rewind", "effect":["rewind"], "description":"Undo your last move" },
+			{"name":"Wait", "type":"special", "texture":"wait", "description":"Pass the turn without casting a spell" },
+//			{"name":"Mana Crystal", "target":"empty", "type":"production", "texture":"diamond", "ongoing":["gain", {"mana": 10}], "description":"Produces 10 mana per turn" },
+//			{"name":"Gust", "type":"production", "texture":"gust", "effect":["gain", {"air": 12}], "description":"Produce 12 Air energy"},
+//			{"name":"Leyline", "target":"empty", "type":"production", "texture":"leyline", "ongoing":["gain", {"earth": 2}], "description":"Produces 2 Earth energy per turn" },
+//			{"name":"Torch", "target":"empty", "type":"production", "texture":"torch", "ongoing":["gain", {"fire": 4}], "upkeep":{"mana": 4}, "description":"Converts 4 mana into Fire energy each turn" },
+//			{"name":"Wellspring", "target":"empty", "type":"production", "texture":"wellspring", "cost":{"mana": 10}, "ongoing":["gain", {"water": 3}], "description":"Produces 3 Water energy per turn" },
+
+//			{"name":"Necromancer", "target":"empty", "type":"minion", "texture":"necromancer", "cost":{"mana": 1}, "effect":["minion", "necromancer"], "description":"Summon a necromancer (2/1)"},
+			{"name":"Sprite", "target":"empty", "type":"minion", "texture":"sprite", "effect":["minion", "sprite"], "description":"Summon a sprite (1/3)"},
+			{"name":"Artificer", "target":"empty", "type":"minion", "texture":"artificer", "cost":{"mana": 1}, "effect":["minion", "artificer"], "description":"Summon an artificer (1/2)"},
+			{"name":"Shaman", "target":"empty", "type":"minion", "texture":"shaman", "cost":{"mana": 1}, "effect":["minion", "shaman"], "description":"Summon a shaman (2/3)"},
+			{"name":"Spearman", "target":"empty", "type":"minion", "texture":"celt", "cost":{"mana": 1}, "effect":["minion", "spearman"], "description":"Summon a spearman (1/5, can attack diagonally)"},
+			{"name":"Lightning", "target":"enemy", "type":"minion", "texture":"lightning", "effect":["damage", "self", 1], "description":"Deal 1 damage"},
+
+	//		{"name":"Replicator Ooze", "target":"empty", "type":"minion", "texture":"slime", "cost":{"water": 30}, "effect":["minion", "replicant"], "description":"Summon a 0/1 ooze that becomes a copy of its killer"},
+
+	//		{"name":"Banner of Hope", "target":"empty", "type":"production", "texture":"banner_blue", "cost":{"water": 10}, "ongoing":["aura", "mul", "health", 2], "description":"Doubles all nearby minions' health" },
+		],
 	},
 
 	"levelTypes":
@@ -65,50 +111,12 @@
 
 	"levels":
 	[
-		{"type":"normal","monsters":[["torchbearer"],["goblin"],["goblin"],[],["torchbearer"],["goblin"],["goblin"]]},
-		{"type":"normal","monsters":[["goblin"],["ghoul"],["ghoul"],["ghoul"],["goblin"],["ghoul"],["ghoul"]]},
-		{"type":"normal","monsters":[["ogre"],["ogre"]]},
+//		{"type":"normal","monsters":[["torchbearer"],["goblin"],["goblin"],[],["torchbearer"],["goblin"],["goblin"]]},
+//		{"type":"normal","monsters":[["goblin"],["ghoul"],["ghoul"],["ghoul"],["goblin"],["ghoul"],["ghoul"]]},
+//		{"type":"normal","monsters":[["ogre"],["ogre"]]},
 		{"type":"normal","monsters":[["shambler"]]},
 		{"type":"normal","monsters":[["treeman"]]},
 		{"type":"normal","monsters":[["torchbearer"],["goblin"],["goblin"],[],["torchbearer"],["goblin"],["goblin"]]},
 		{"type":"normal","monsters":[["automaton"],["automaton"],["automaton"]]},
 	],
-
-	"spells":
-	{
-		"necro":
-		[
-			{"name":"Raise Dead", "target":"empty", "type":"minion", "texture":"skeleton", "effect":["minion", "skeleton"], "description":"Summon a 2/4 skeleton"},
-			{"name":"Skeleton Archer", "target":"empty", "type":"minion", "texture":"elf", "cost":{"mana": 1}, "effect":["minion", "archer"], "description":"Summon a 1/1 archer that can attack up to 3 squares away"},
-		],
-
-		"shaman":
-		[
-			{"name":"Bearform", "type":"minion", "texture":"bear", "effect":["transform", "bear"], "description":"The shaman transforms into a 4/4 bear"},
-			{"name":"Barbarian", "target":"empty", "type":"minion", "texture":"barbarian", "cost":{"fire": 1}, "effect":["minion", "barbarian"], "description":"Summon a 3/3 barbarian"},
-		],
-
-		"main":
-		[
-			{"name":"Rewind", "type":"special", "texture":"rewind", "effect":["rewind"], "description":"Undo your last move" },
-			{"name":"Wait", "type":"special", "texture":"wait", "description":"Pass the turn without casting a spell" },
-//			{"name":"Mana Crystal", "target":"empty", "type":"production", "texture":"diamond", "ongoing":["gain", {"mana": 10}], "description":"Produces 10 mana per turn" },
-//			{"name":"Gust", "type":"production", "texture":"gust", "effect":["gain", {"air": 12}], "description":"Produce 12 Air energy"},
-//			{"name":"Leyline", "target":"empty", "type":"production", "texture":"leyline", "ongoing":["gain", {"earth": 2}], "description":"Produces 2 Earth energy per turn" },
-//			{"name":"Torch", "target":"empty", "type":"production", "texture":"torch", "ongoing":["gain", {"fire": 4}], "upkeep":{"mana": 4}, "description":"Converts 4 mana into Fire energy each turn" },
-//			{"name":"Wellspring", "target":"empty", "type":"production", "texture":"wellspring", "cost":{"mana": 10}, "ongoing":["gain", {"water": 3}], "description":"Produces 3 Water energy per turn" },
-
-			{"name":"Necromancer", "target":"empty", "type":"minion", "texture":"necromancer", "cost":{"mana": 1}, "effect":["minion", "necromancer"], "description":"Summon a necromancer (2/1 magic user)"},
-			{"name":"Shaman", "target":"empty", "type":"minion", "texture":"shaman", "cost":{"mana": 1}, "effect":["minion", "shaman"], "description":"Summon a shaman (2/3 magic user)"},
-			{"name":"Spearman", "target":"empty", "type":"minion", "texture":"celt", "cost":{"mana": 1}, "effect":["minion", "spearman"], "description":"Summon a 1/5 sentry that can attack diagonally"},
-			{"name":"Sprite", "target":"empty", "type":"minion", "texture":"sprite", "effect":["minion", "sprite"], "description":"Summon a 1/3 sprite"},
-			{"name":"Lightning", "target":"enemy", "type":"minion", "texture":"lightning", "effect":["damage", "self", 1], "description":"Summon a 1/3 sprite"},
-
-	//		{"name":"Replicator Ooze", "target":"empty", "type":"minion", "texture":"slime", "cost":{"water": 30}, "effect":["minion", "replicant"], "description":"Summon a 0/1 ooze that becomes a copy of its killer"},
-	//		{"name":"Barrier", "target":"path", "type":"minion", "texture":"barrier", "cost":{"earth": 15}, "effect":["minion", "barrier"], "description":"Summon a 0/8 barrier"},
-
-			{"name":"Serrated Blades", "target":"empty", "type":"production", "texture":"banner_red", "cost":{"metal": 1}, "ongoing":["aura", "mul", "attack", 2], "description":"All nearby minions do double damage" },
-	//		{"name":"Banner of Hope", "target":"empty", "type":"production", "texture":"banner_blue", "cost":{"water": 10}, "ongoing":["aura", "mul", "health", 2], "description":"Doubles all nearby minions' health" },
-		],
-	}
 }

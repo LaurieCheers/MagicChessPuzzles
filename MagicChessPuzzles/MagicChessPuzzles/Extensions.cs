@@ -12,5 +12,15 @@ namespace MagicChessPuzzles
         {
             return self.Left <= pos.X && self.Top <= pos.Y && self.Right >= pos.X && self.Bottom >= pos.Y;
         }
+
+        public static Rectangle Lerp(this Rectangle start, Rectangle end, float lerp)
+        {
+            return new Rectangle(
+                (int)(start.X + lerp * (end.X - start.X)),
+                (int)(start.Y + lerp * (end.Y - start.Y)),
+                (int)(start.Width + lerp * (end.Width - start.Width)),
+                (int)(start.Height + lerp * (end.Height - start.Height))
+            );
+        }
     }
 }
