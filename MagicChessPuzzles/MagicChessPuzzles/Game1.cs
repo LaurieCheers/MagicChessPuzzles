@@ -19,6 +19,10 @@ namespace MagicChessPuzzles
     /// </summary>
     public class Game1 : Microsoft.Xna.Framework.Game
     {
+        public const float ATTACK_ANIM_DURATION = 0.1f;
+        public const float RECOVER_ANIM_DURATION = 0.2f;
+        public const float WALK_ANIM_DURATION = 0.1f;
+
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
         public static SpriteFont font;
@@ -26,16 +30,19 @@ namespace MagicChessPuzzles
         public static Texture2D highlightSquare;
         public static Texture2D gameOverTexture;
         public static Texture2D gameWonTexture;
+        public static Texture2D upgradeTexture;
         public static InputState inputState = new InputState();
         public static LayeredImage tooltipBG;
         public static LayeredImage activeCardBG;
         public static Dictionary<string, List<Card>> spellBooks = new Dictionary<string, List<Card>>();
+        public Dictionary<Card, int> spellUpgrades = new Dictionary<Card,int>();
         public static CardCatalog[] catalogs;
         List<GameState> gameStates;
         List<LevelScript> levelScripts;
+        GameState nextGameState;
         GameState gameStateOnSkip;
         int currentLevelIdx;
-        SpriteAnimation animation = new SpriteAnimation();
+        MinionAnimationSequence animation = new MinionAnimationSequence();
 
         public Game1()
         {
@@ -72,6 +79,7 @@ namespace MagicChessPuzzles
             highlightSquare = Content.Load<Texture2D>("highlightSquare");
             gameOverTexture = Content.Load<Texture2D>("gameover");
             gameWonTexture = Content.Load<Texture2D>("gamewon");
+            upgradeTexture = Content.Load<Texture2D>("upgrade");
 
             StreamReader configReader = new StreamReader(File.OpenRead("Content/config.json"));
             JSONTable config = JSONTable.parse(configReader.ReadToEnd());
@@ -92,8 +100,8 @@ namespace MagicChessPuzzles
 
             catalogs = new CardCatalog[]
             {
-                new CardCatalog(new Rectangle(0, 5, 128, 600), spellBooks["main"]),
-                new CardCatalog(new Rectangle(800-128, 5, 128, 600))
+                new CardCatalog(new Rectangle(0, 5, 128, 600), spellBooks["main"], spellUpgrades),
+                new CardCatalog(new Rectangle(800-128, 5, 128, 600), null, spellUpgrades)
             };
 
             levelScripts = LevelScript.load(config.getArray("levels"));
@@ -127,7 +135,21 @@ namespace MagicChessPuzzles
         protected override void Update(GameTime gameTime)
         {
             inputState.Update();
-            animation.Update(gameTime);
+
+            // ignore all input while the animation is in progress
+            // (TODO: skip button)
+            if (!animation.finished)
+            {
+                animation.Update(gameTime);
+                if (animation.finished)
+                {
+                    gameStates.Add(nextGameState);
+                }
+                else
+                {
+                    return;
+                }
+            }
 
             if (gameStates.Last().gameEndState == GameState.GameEndState.GameWon)
             {
@@ -145,7 +167,14 @@ namespace MagicChessPuzzles
 
                     if (catalog.playing != null)
                     {
-                        PlayCard(catalog.playing, catalog.caster, catalog.playPosition);
+                        if (catalog.playTargetCard != null)
+                        {
+                            PlayCard(catalog.playing, catalog.caster, TriggerItem.create(catalog.playTargetCard));
+                        }
+                        else
+                        {
+                            PlayCard(catalog.playing, catalog.caster, gameStates.Last().getItemAt(catalog.playPosition));
+                        }
                     }
                 }
             }
@@ -153,10 +182,12 @@ namespace MagicChessPuzzles
             base.Update(gameTime);
         }
 
-        public void PlayCard(Card c, Point caster, Point position)
+        public void PlayCard(Card c, Point caster, TriggerItem target)
         {
             if (c.effect != null && c.effect is Effect_Rewind)
             {
+                if (gameStates.Count <= 1)
+                    return;
                 // rewind isn't really a spell like everything else
                 gameStates.RemoveAt(gameStates.Count - 1);
                 gameStateOnSkip = gameStates.Last().GetGameStateOnSkip();
@@ -164,18 +195,13 @@ namespace MagicChessPuzzles
             else
             {
                 GameState oldGameState = gameStates.Last();
-                if (oldGameState.CanPlayCard(c, caster, position))
+                if (oldGameState.CanPlayCard(c, caster, target))
                 {
-                    GameState newGameState = new GameState(gameStates.Last());
-                    
-                    animation.Clear();
-                    animation.AddPhase(0.1f); //attack
-                    animation.AddPhase(0.2f); //recover
-                    animation.AddPhase(0.5f); //move
+                    nextGameState = new GameState(gameStates.Last());
 
-                    newGameState.PlayCard(c, caster, position, animation);
-                    gameStates.Add(newGameState);
-                    gameStateOnSkip = newGameState.GetGameStateOnSkip();
+                    animation.Clear();
+                    nextGameState.PlayCard(c, caster, nextGameState.Adapt(target), animation);
+                    gameStateOnSkip = nextGameState.GetGameStateOnSkip();
                 }
             }
         }
@@ -197,8 +223,10 @@ namespace MagicChessPuzzles
 
             GameState gameState = gameStates.Last();
 
-            gameState.Draw(spriteBatch, gameStateOnSkip, !animation.animating);
-            animation.Draw(spriteBatch);
+            if( animation.finished )
+                gameState.Draw(spriteBatch, gameStateOnSkip, MinionAnimationBatch.Empty);
+            else
+                animation.Draw(spriteBatch, gameStateOnSkip);
 
             foreach (CardCatalog catalog in catalogs)
             {

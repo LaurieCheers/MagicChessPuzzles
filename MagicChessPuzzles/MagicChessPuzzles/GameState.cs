@@ -7,103 +7,6 @@ using Microsoft.Xna.Framework;
 
 namespace MagicChessPuzzles
 {
-    public abstract class Permanent
-    {
-        public PermanentType type;
-        public Point position;
-        public bool isEnemy;
-
-        public Permanent(PermanentType type, Point p, bool isEnemy)
-        {
-            this.type = type;
-            position = p;
-            this.isEnemy = isEnemy;
-        }
-
-        public Permanent(Permanent basis)
-        {
-            type = basis.type;
-            position = basis.position;
-            isEnemy = basis.isEnemy;
-        }
-
-        public virtual Vector2 drawPos
-        {
-            get { return GameState.GridToScreenPos(position); }
-        }
-
-        public virtual SpriteEffects spriteEffects
-        {
-            get { return SpriteEffects.None; }
-        }
-
-        public abstract void Draw(SpriteBatch spriteBatch);
-        public abstract void DrawMouseOver(SpriteBatch spriteBatch);
-        public abstract Permanent Clone();
-        
-        public virtual void ResetTemporaryEffects()
-        {
-        }
-
-        public virtual void WhenDies(GameState gameState, Point position)
-        {
-        }
-
-        public bool TryPayUpkeep(GameState gameState)
-        {
-            if (gameState.CanPayCost(type.upkeep))
-            {
-                gameState.PayCost(type.upkeep);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        public void ApplyOngoingEffects(GameState gameState)
-        {
-            gameState.ApplyEffect(type.ongoing,this,position);
-        }
-
-        public void ApplyOngoingLateEffects(GameState gameState)
-        {
-            gameState.ApplyEffect(type.ongoing_late, this, position);
-        }
-    }
-
-    class Ongoing: Permanent
-    {
-        Card baseCard;
-
-        public Ongoing(Card baseCard, Point p): base(baseCard.ongoingType, p, false)
-        {
-            this.baseCard = baseCard;
-        }
-
-        public Ongoing(Ongoing basis): base(basis)
-        {
-            this.baseCard = basis.baseCard;
-        }
-
-        public override Permanent Clone()
-        {
-            return new Ongoing(this);
-        }
-
-        public override void Draw(SpriteBatch spriteBatch)
-        {
-            spriteBatch.Draw(baseCard.image, drawPos, Color.White);
-//            spriteBatch.DrawString(Game1.font, baseCard.name, screenPos, Color.White);
-        }
-
-        public override void DrawMouseOver(SpriteBatch spriteBatch)
-        {
-
-        }
-    }
-
     public class GameState
     {
         public enum GameEndState
@@ -119,12 +22,21 @@ namespace MagicChessPuzzles
         Dictionary<Point, Permanent> permanents;
         Dictionary<ResourceType, int> resources;
         HashSet<Card> playableCards;
+        Dictionary<Card, TextChanges> cardTextChanges;
         LevelScript levelScript;
         List<Point> killed = new List<Point>();
+        List<WaitingTrigger> triggersResolving = new List<WaitingTrigger>();
+        List<WaitingTrigger> triggersWaiting = new List<WaitingTrigger>();
+        public List<int> spawnIndices;
 
         public GameState(LevelScript levelScript)
         {
             this.levelScript = levelScript;
+            spawnIndices = new List<int>();
+            for (int Idx = this.levelScript.spawnPoint.Count; Idx > 0; --Idx)
+            {
+                spawnIndices.Add(0);
+            }
 
             parentState = null;
             permanents = new Dictionary<Point, Permanent>();
@@ -132,6 +44,7 @@ namespace MagicChessPuzzles
             turnNumber = 1;
             playableCards = new HashSet<Card>();
             gameEndState = GameEndState.GameRunning;
+            cardTextChanges = new Dictionary<Card, TextChanges>();
 
             levelScript.InitState(this);
         }
@@ -143,6 +56,12 @@ namespace MagicChessPuzzles
             this.levelScript = parentState.levelScript;
             turnNumber = parentState.turnNumber;
 
+            spawnIndices = new List<int>();
+            foreach (int spawnIndex in parentState.spawnIndices)
+            {
+                spawnIndices.Add(spawnIndex);
+            }
+            
             permanents = new Dictionary<Point, Permanent>();
             foreach (KeyValuePair<Point, Permanent> p in parentState.permanents)
             {
@@ -154,7 +73,24 @@ namespace MagicChessPuzzles
             }
 
             resources = new Dictionary<ResourceType, int>(parentState.resources);
+            cardTextChanges = new Dictionary<Card, TextChanges>();
+            foreach (KeyValuePair<Card, TextChanges> kv in parentState.cardTextChanges)
+            {
+                cardTextChanges.Add(kv.Key, kv.Value);
+            }
             playableCards = new HashSet<Card>();
+        }
+
+        public void AddTextChange(Card c, TextChanges.TextChange<int> change)
+        {
+            if (cardTextChanges.ContainsKey(c))
+            {
+                cardTextChanges[c] = new TextChanges(cardTextChanges[c], change);
+            }
+            else
+            {
+                cardTextChanges[c] = new TextChanges(change);
+            }
         }
 
         public bool WonLevel()
@@ -183,40 +119,51 @@ namespace MagicChessPuzzles
             gameEndState = GameEndState.GameOver;
         }
 
-        public void AddKilled(Point pos)
+        public void Destroyed(Point pos, Permanent killer)
         {
             killed.Add(pos);
+            getPermanentAt(pos).killedBy = killer;
         }
 
-        public bool CanPlayCard(Card card, Point caster, Point position)
+        public bool CanPlayCard(Card card, Point caster, TriggerItem target)
         {
-            if (permanents.ContainsKey(position))
+            switch (card.targetType)
             {
-                Permanent p = permanents[position];
-
-                switch (card.targetType)
-                {
-                    case TargetType.empty:
-                    case TargetType.path:
+                case TargetType.numeric_spell:
+                    if (!target.card.HasANumber())
                         return false;
-                    case TargetType.friend:
-                        if (permanents[position].isEnemy) return false;
-                        break;
-                    case TargetType.enemy:
-                        if (!permanents[position].isEnemy) return false;
-                        break;
-                }
-            }
-            else
-            {
-                switch (card.targetType)
-                {
-                    case TargetType.enemy:
+                    break;
+                case TargetType.area_spell:
+                    if (!target.card.HasAnArea())
                         return false;
-                }
+                    break;
+                case TargetType.empty:
+                case TargetType.path:
+                    if(target.permanent != null)
+                        return false;
+                    break;
+                case TargetType.minion:
+                    if (target.permanent == null)
+                        return false;
+                    break;
+                case TargetType.friend:
+                    if (target.permanent == null || target.permanent.isEnemy)
+                        return false;
+                    break;
+                case TargetType.enemy:
+                    if (target.permanent == null)
+                    {
+                        return false;
+                    }
+                    else
+                    {
+                        if (!target.permanent.isEnemy)
+                            return false;
+                    }
+                    break;
             }
 
-            if (levelScript.Blocks(position, card.targetType))
+            if (target.card == null && levelScript.Blocks(target.position, card.targetType))
                 return false;
 
             return CanPlayCard(card);
@@ -257,6 +204,14 @@ namespace MagicChessPuzzles
 
             playableCards.Add(card);
             return true;
+        }
+
+        public TextChanges getTextChanges(Card c)
+        {
+            if (cardTextChanges.ContainsKey(c))
+                return cardTextChanges[c];
+            else
+                return TextChanges.none;
         }
 
         public Dictionary<ResourceType, int> CombineCosts(List<ResourceAmount> cost1, List<ResourceAmount> cost2)
@@ -313,21 +268,27 @@ namespace MagicChessPuzzles
             }
         }
 
-        public void PlayCard(Card c, Point caster, Point p, SpriteAnimation animation)
+        public void PlayCard(Card c, Point caster, TriggerItem target, MinionAnimationSequence animation)
         {
             PayCost(c.cost);
-            ApplyEffect(c.effect, getMinionAt(caster), p);
+            TextChanges changes = null;
+            if (cardTextChanges.ContainsKey(c))
+                changes = cardTextChanges[c];
+
+            ApplyEffect(c.effect, new EffectContext(this, changes, getPermanentAt(caster), target, null, animation));
+
             if (c.ongoingType != null)
             {
-                permanents[p] = new Ongoing(c, p);
+                Point pos = target.position;
+                permanents[pos] = new Ongoing(c, pos);
             }
 
             TurnEffects(animation);
         }
 
-        public void TurnEffects(SpriteAnimation animation)
+        public void TurnEffects(MinionAnimationSequence animation)
         {
-            CleanUpKilled();
+            CleanUp(animation);
 
             List<Permanent> savedPermanents = new List<Permanent>(permanents.Values);
             foreach (Permanent p in savedPermanents)
@@ -337,28 +298,29 @@ namespace MagicChessPuzzles
 
             foreach (Permanent p in savedPermanents)
             {
-                p.ApplyOngoingEffects(this);
+                p.ApplyOngoingEffects(this, animation);
             }
 
             foreach(KeyValuePair<Point, Permanent> entry in permanents )
             {
                 if (!entry.Value.TryPayUpkeep(this))
                 {
-                    AddKilled(entry.Key);
+                    Destroyed(entry.Key, entry.Value);
                 }
             }
 
             MinionsAttack(animation);
+            CleanUp(animation);
 
-            CleanUpKilled();
             MoveEnemies(animation);
-            levelScript.Apply(this, animation);
 
             var finalPermanents = permanents.Values.ToList();
             foreach (Permanent p in finalPermanents)
             {
-                p.ApplyOngoingLateEffects(this);
+                p.ApplyOngoingLateEffects(this, animation);
             }
+
+            CleanUp(animation);
 
             if (gameEndState == GameEndState.GameRunning && WonLevel())
             {
@@ -368,29 +330,97 @@ namespace MagicChessPuzzles
             turnNumber++;
         }
 
-        public void CleanUpKilled()
+        public void CleanUp(MinionAnimationSequence animation)
         {
+            DeadMinionsDie();
+            ResolveWaitingTriggers(animation);
+        }
+
+        public void DeadMinionsDie()
+        {
+            foreach (Point pos in killed)
+            {
+                Minion m = getMinionAt(pos);
+                HandleTriggers(new TriggerEvent(TriggerType.onKill, m.killedBy, m));
+            }
+
             List<KeyValuePair<Permanent, Point>> deadPermanents = new List<KeyValuePair<Permanent, Point>>();
             foreach (Point pos in killed)
             {
                 Permanent p = permanents[pos];
+                p.deleted = true;
                 permanents.Remove(pos);
                 deadPermanents.Add(new KeyValuePair<Permanent, Point>(p, pos));
-            }
-
-            foreach (KeyValuePair<Permanent, Point> kv in deadPermanents)
-            {
-                kv.Key.WhenDies(this, kv.Value);
             }
 
             killed.Clear();
         }
 
-        public void MoveEnemies(SpriteAnimation animation)
+        public void ResolveWaitingTriggers(MinionAnimationSequence animation)
         {
+            int loopCount = 0;
+            while(triggersWaiting.Count > 0)
+            {
+                loopCount++;
+                triggersResolving = triggersWaiting;
+                triggersWaiting = new List<WaitingTrigger>();
+
+                bool hasAttackTriggers = false;
+                foreach(WaitingTrigger trigger in triggersResolving)
+                {
+                    if (trigger.ability.isAttackTrigger)
+                        hasAttackTriggers = true;
+                    else
+                        trigger.ability.Apply(new EffectContext(this, null, trigger.permanent, TriggerItem.create(trigger.position), trigger.evt, animation));
+                }
+
+                if (hasAttackTriggers)
+                {
+                    MinionAnimationBatch attackAnim = animation.AddBatch(new GameState(this), Game1.ATTACK_ANIM_DURATION);
+                    MinionAnimationBatch recoverAnim = animation.AddBatch(this, Game1.RECOVER_ANIM_DURATION);
+                    foreach (WaitingTrigger trigger in triggersResolving)
+                    {
+                        if (trigger.ability.isAttackTrigger)
+                            trigger.ability.Apply(new EffectContext(this, trigger.permanent, trigger.position, trigger.evt, attackAnim, recoverAnim, animation));
+                    }
+                    recoverAnim.SetInitialGameState(new GameState(this));
+                }
+
+                DeadMinionsDie();
+
+                if (loopCount > 100)
+                {
+                    triggersWaiting.Clear();
+                }
+            }
+
+            triggersResolving.Clear();
+        }
+
+        class MinionMove
+        {
+            public Minion minion;
+            public bool moveSpent;
+            public int movesLeft;
+            public Vector2 currentAnimPos;
+            public Point moveTo { get { return new Point(minion.position.X - 1, minion.position.Y); } }
+            public MinionMove(Minion m)
+            {
+                this.currentAnimPos = m.drawPos;
+                this.minion = m;
+                this.movesLeft = m.stats.move;
+            }
+        }
+
+        public void MoveEnemies(MinionAnimationSequence animation)
+        {
+            List<MinionMove> minionMoves = new List<MinionMove>();
+            HashSet<Minion> minionsStillMoving = new HashSet<Minion>();
+
+            MinionAnimationBatch stepBatch = animation.AddBatch(this, Game1.WALK_ANIM_DURATION);
             // enemies walk forward
             Point levelSize = levelScript.levelSize;
-            for (int x = 0; x < levelSize.X; x++)
+            for (int x = 0; x < levelSize.X; x++) //NB processing these in ascending X order - this matters
             {
                 for (int y = levelSize.Y - 1; y >= 0; y--)
                 {
@@ -399,43 +429,164 @@ namespace MagicChessPuzzles
                         continue;
 
                     Permanent p = permanents[position];
-                    Vector2 oldPos = p.drawPos;
 
-                    if (p is Minion && ((Minion)p).isEnemy)
+                    if (!(p is Minion))
+                        continue;
+
+                    Minion m = (Minion)p;
+                    if(m.isEnemy && m.stats.move > 0)
                     {
-                        Minion m = (Minion)p;
-                        if (m.TakeAStep())
+                        HandleTriggers(new TriggerEvent(TriggerType.beforeMove, m));
+                        
+                        Vector2 oldDrawPos = m.drawPos;
+                        if (m.stats.move == 1 && m.stats.hasKeyword(Keyword.slow) && !m.slow_movedHalfWay)
                         {
-                            TryMove(m, new Point(x-1, y));
+                            m.slow_movedHalfWay = true;
+                            stepBatch.AddAnimation(m, oldDrawPos, m.drawPos);
+                        }
+                        else
+                        {
+                            MinionMove mmove = new MinionMove(m);
+                            minionMoves.Add(mmove);
+                            minionsStillMoving.Add(m);
                         }
                     }
-
-                    if (animation != null)
-                        animation.AddMove(AnimationPhase.Move, oldPos, p.drawPos, p.type.texture, Color.White, p.spriteEffects);
                 }
+            }
+
+            CleanUp(animation);
+
+            bool hasMoreMoves = true;
+            bool firstPass = true;
+            while(hasMoreMoves)
+            {
+                foreach (MinionMove mmove in minionMoves)
+                {
+                    if (mmove.movesLeft <= 0)
+                        continue;
+
+                    if (levelScript.Blocks(mmove.moveTo, TargetType.empty))
+                    {
+                        mmove.movesLeft = 0;
+                        mmove.moveSpent = true;
+                        minionsStillMoving.Remove(mmove.minion);
+                    }
+                    else if (permanents.ContainsKey(mmove.moveTo) && !minionsStillMoving.Contains(getMinionAt(mmove.moveTo)))
+                    {
+                        // If I'm blocked:
+                        if (mmove.minion.stats.hasKeyword(Keyword.unstoppable))
+                        {
+                            Destroyed(mmove.moveTo, mmove.minion);
+                        }
+                        mmove.moveSpent = true;
+                    }
+                }
+                CleanUp(animation);
+
+                hasMoreMoves = false;
+                foreach (MinionMove mmove in minionMoves)
+                {
+                    if (mmove.movesLeft > 0)
+                    {
+                        if (TryMove(mmove, mmove.moveTo))
+                        {
+                            mmove.moveSpent = true;
+                            stepBatch.AddAnimation(mmove.minion, mmove.currentAnimPos, mmove.minion.drawPos);
+                            mmove.currentAnimPos = mmove.minion.drawPos;
+                        }
+
+                        if (mmove.moveSpent)
+                        {
+                            mmove.movesLeft--;
+                            mmove.moveSpent = false;
+                        }
+
+                        if (mmove.movesLeft > 0)
+                        {
+                            hasMoreMoves = true;
+                        }
+                        else
+                        {
+                            minionsStillMoving.Remove(mmove.minion);
+                        }
+                    }
+                }
+
+                if (firstPass)
+                {
+                    levelScript.Apply(this, stepBatch);
+                    firstPass = false;
+                }
+                stepBatch.SetInitialGameState(new GameState(this));
+
+                stepBatch = animation.AddBatch(this, Game1.WALK_ANIM_DURATION);
             }
         }
 
-        public void MinionsAttack(SpriteAnimation animation)
+        public void HandleTriggers(TriggerType eventType, Permanent source)
         {
-            for (int y = levelScript.levelSize.Y-1; y >= 0; y--)
+            HandleTriggers(new TriggerEvent(eventType, source));
+        }
+
+        public void HandleTriggers(TriggerType eventType, Permanent source, Permanent obj)
+        {
+            HandleTriggers(new TriggerEvent(eventType, source, obj));
+        }
+
+        public void HandleTriggers(TriggerEvent evt)
+        {
+            foreach (KeyValuePair<Point, Permanent> kv in permanents)
+            {
+                kv.Value.CheckTriggers(evt, this, this.triggersWaiting);
+            }
+        }
+
+        public void MinionsAttack(MinionAnimationSequence animation)
+        {
+            MinionAnimationBatch attack = null;
+            MinionAnimationBatch recover = null;
+            if (animation != null)
+            {
+                attack = animation.AddBatch(new GameState(this), Game1.ATTACK_ANIM_DURATION);
+                recover = animation.AddBatch(this, Game1.RECOVER_ANIM_DURATION);
+            }
+
+            for (int y = levelScript.levelSize.Y - 1; y >= 0; y--)
             {
                 for (int x = 0; x < levelScript.levelSize.X; x++)
                 {
                     Permanent p = getPermanentAt(new Point(x, y));
                     if (p != null)
                     {
-                        if( !(p is Minion) || !((Minion)p).CheckAttacks(this, animation) )
+                        if( p is Minion )
                         {
-                            if (animation != null)
-                            {
-                                animation.AddStatic(AnimationPhase.Attack, p.drawPos, p.type.texture, Color.White, p.spriteEffects);
-                                animation.AddStatic(AnimationPhase.Recover, p.drawPos, p.type.texture, Color.White, p.spriteEffects);
-                            }
+                            ((Minion)p).CheckAttacks(this, attack, recover, animation);
                         }
                     }
                 }
             }
+
+            recover.SetInitialGameState(new GameState(this));
+        }
+
+        public TriggerItem Adapt(TriggerItem item)
+        {
+            if (item.card != null)
+            {
+                return item;
+            }
+            else
+            {
+                return getItemAt(item.position);
+            }
+        }
+
+        public TriggerItem getItemAt(Point pos)
+        {
+            if (!permanents.ContainsKey(pos))
+                return TriggerItem.create(pos);
+
+            return TriggerItem.create(permanents[pos]);
         }
 
         public Permanent getPermanentAt(Point pos)
@@ -457,12 +608,11 @@ namespace MagicChessPuzzles
             return (Minion)p;
         }
 
-        public List<Minion> getMinionsAt(Point basePos, Point[] offsets)
+        public List<Minion> getMinionsAt(Point[] positions)
         {
             List<Minion> result = new List<Minion>();
-            foreach (Point offset in offsets)
+            foreach (Point currentPos in positions)
             {
-                Point currentPos = new Point(basePos.X + offset.X, basePos.Y + offset.Y);
                 if (permanents.ContainsKey(currentPos))
                 {
                     Permanent found = permanents[currentPos];
@@ -477,14 +627,14 @@ namespace MagicChessPuzzles
 
         public List<Minion> getMinionsInRange(Range range, Point pos)
         {
-            return getMinionsAt(pos, getOffsetsForRange(range));
+            return getMinionsAt(getPositionsForRange(pos, range));
         }
 
-        public Point[] getOffsetsForRange(Range range)
+        public Point[] getPositionsForRange(Point pos, Range range)
         {
             switch (range)
             {
-                case Range.self:
+                case Range.square:
                     return new Point[]{new Point(0,0)};
                 case Range.adjacent:
                     return adjacentOffsets;
@@ -520,22 +670,22 @@ namespace MagicChessPuzzles
             new Point(2,-1), new Point(2,0), new Point(2,1),
         };
 
-        public bool TryMove(Permanent p, Point moveTo)
+        bool TryMove(MinionMove moveState, Point moveTo)
         {
-            if( !permanents.ContainsKey(moveTo))
+            if (!permanents.ContainsKey(moveTo))
             {
-                permanents.Remove(p.position);
-                permanents[moveTo] = p;
-                p.position = moveTo;
+                permanents.Remove(moveState.minion.position);
+                permanents[moveTo] = moveState.minion;
+                moveState.minion.position = moveTo;
                 return true;
             }
             return false;
         }
 
-        public void ApplyEffect(Effect_Base effect, Permanent context, Point pos)
+        public void ApplyEffect(Effect_Base effect, EffectContext context)
         {
             if( effect != null )
-                effect.Apply(this,context,pos);
+                effect.Apply(context);
         }
 
         public void GainResources(List<ResourceAmount> resourceList)
@@ -562,31 +712,27 @@ namespace MagicChessPuzzles
             }
         }
 
-        public void CreateEnemy(MinionType type, Point spawnPoint, SpriteAnimation animation)
+        public void CreateEnemy(MinionType type, Point spawnPoint, MinionAnimationBatch moveAnim)
         {
             Minion spawned = new Minion(type, spawnPoint, true);
             permanents[spawnPoint] = spawned;
-            if(animation != null)
-                animation.AddMove(AnimationPhase.Move, spawned.drawPos+new Vector2(32.0f,0.0f), spawned.drawPos, spawned.type.texture, Color.White, spawned.spriteEffects);
+            moveAnim.AddAnimation(spawned, spawned.drawPos + new Vector2(32.0f, 0.0f), spawned.drawPos);
         }
 
-        public void Draw(SpriteBatch spriteBatch, GameState gameStateOnSkip, bool drawPermanents)
+        public void Draw(SpriteBatch spriteBatch, GameState gameStateOnSkip, MinionAnimationBatch animation)
         {
             levelScript.DrawBackground(spriteBatch);
 
             spriteBatch.DrawString(Game1.font, "Turn " + turnNumber, new Vector2(200, 20), Color.White);
             DrawResources(spriteBatch, resources, gameStateOnSkip.resources, new Vector2(250, 20));
 
-            if( drawPermanents )
+            for (int X = 0; X < levelScript.levelSize.X; X++)
             {
-                for (int X = 0; X < levelScript.levelSize.X; X++)
+                for (int Y = 0; Y < levelScript.levelSize.Y; Y++)
                 {
-                    for (int Y = 0; Y < levelScript.levelSize.Y; Y++)
-                    {
-                        Point pos = new Point(X, Y);
-                        if (permanents.ContainsKey(pos))
-                            permanents[pos].Draw(spriteBatch);
-                    }
+                    Point pos = new Point(X, Y);
+                    if (permanents.ContainsKey(pos))
+                        permanents[pos].Draw(spriteBatch, animation);
                 }
             }
         }
@@ -594,7 +740,7 @@ namespace MagicChessPuzzles
         public void DrawTargetCursor(SpriteBatch spriteBatch, Card playing, Point caster, Vector2 mousePos)
         {
             Point p = ScreenToGridPos(mousePos);
-            bool canPlay = CanPlayCard(playing, caster, p);
+            bool canPlay = CanPlayCard(playing, caster, getItemAt(p));
             spriteBatch.Draw(Game1.gridCursor, GridToScreenPos(p), canPlay? Color.LightGreen: Color.Red);
         }
 
@@ -637,7 +783,7 @@ namespace MagicChessPuzzles
         public GameState GetGameStateOnSkip()
         {
             GameState result = new GameState(this);
-            result.TurnEffects(null);
+            result.TurnEffects(new MinionAnimationSequence());
             return result;
         }
 

@@ -9,6 +9,21 @@ using System.Diagnostics;
 
 namespace MagicChessPuzzles
 {
+    public class MinionId
+    {
+    }
+
+    [Flags]
+    public enum Keyword
+    {
+        none = 0,
+        slow = 1,
+        unstoppable = 2,
+        fireproof = 4,
+        attackproof = 8,
+        flammable = 16,
+    }
+
     public struct MinionStats
     {
         public enum Range
@@ -21,8 +36,17 @@ namespace MagicChessPuzzles
         public int maxHealth;
         public int health;
         public int attack;
+        public int move;
         public Range range;
-        public bool slow;
+        public Keyword keywords;
+
+        public int burning;
+        public int burningNextTurn;
+
+        public bool hasKeyword(Keyword keyword)
+        {
+            return (keywords & keyword) == keyword;
+        }
     }
 
     public class MinionType : PermanentType
@@ -40,8 +64,15 @@ namespace MagicChessPuzzles
             stats.maxHealth = template.getInt("health", 1);
             stats.health = stats.maxHealth;
             stats.attack = template.getInt("attack", 1);
+            stats.move = template.getInt("move", 1);
             Enum.TryParse<MinionStats.Range>(template.getString("range", "adjacent"), out stats.range);
-            stats.slow = template.getBool("slow", false);
+            foreach (string abilityName in template.getArray("keywords", JSONArray.empty).asStrings())
+            {
+                Keyword keyword;
+                bool ok = Enum.TryParse<Keyword>(abilityName, out keyword);
+                Debug.Assert(ok);
+                stats.keywords |= keyword;
+            }
             spells = template.getString("spells", null);
             description = template.getString("description", "Just a guy");
         }
@@ -59,22 +90,35 @@ namespace MagicChessPuzzles
 
         public static MinionType get(string name)
         {
+            if (name == "")
+                return null;
+
             return types[name];
+        }
+
+        public static Property<TriggerItem> createProperty(JSONArray template, int Idx)
+        {
+            object obj = template.getProperty(Idx);
+            if (obj is string)
+                return new Property_Literal_TriggerItem(TriggerItem.create(MinionType.get((string)obj)));
+            else
+                return Property.create_TriggerItem(template.getArray(Idx));
         }
     }
 
     public class Minion : Permanent
     {
+        public MinionId minionId;
         public MinionType mtype;
         public bool slow_movedHalfWay;
         public MinionStats stats;
         public MinionStats permanentStats; // excludes effects from auras
-        public Permanent killedBy;
         public string spells{ get{ return mtype.spells; } }
 
         public Minion(MinionType type, Point p, bool isEnemy)
             : base(type, p, isEnemy)
         {
+            this.minionId = new MinionId();
             this.mtype = type;
             this.permanentStats = type.stats;
             this.stats = this.permanentStats;
@@ -84,6 +128,7 @@ namespace MagicChessPuzzles
         public Minion(Minion basis)
             : base(basis)
         {
+            this.minionId = basis.minionId;
             this.mtype = basis.mtype;
             this.permanentStats = basis.permanentStats;
             this.stats = basis.stats;
@@ -93,14 +138,6 @@ namespace MagicChessPuzzles
         public override Permanent Clone()
         {
             return new Minion(this);
-        }
-
-        public override void WhenDies(GameState gameState, Point pos)
-        {
-            if (mtype.whenDies != null)
-            {
-                gameState.ApplyEffect(mtype.whenDies, this, pos);
-            }
         }
 
         public override void ResetTemporaryEffects()
@@ -127,17 +164,19 @@ namespace MagicChessPuzzles
         { get {
             return new Vector2
             (
-                base.drawPos.X - (slow_movedHalfWay ? 8.0f : (stats.slow ? -8.0f : 0.0f)),
+                base.drawPos.X - (slow_movedHalfWay ? 8.0f : (stats.hasKeyword(Keyword.slow) ? -8.0f : 0.0f)),
                 base.drawPos.Y + 20.0f - type.texture.Height
             );
         }}
 
-        public override void Draw(SpriteBatch spriteBatch)
+        public override void Draw(SpriteBatch spriteBatch, MinionAnimationBatch animation)
         {
-            Vector2 pos = drawPos;
+            Vector2 pos = animation.GetPosition(this);
             spriteBatch.Draw(type.texture, new Rectangle((int)pos.X, (int)pos.Y, type.texture.Width, type.texture.Height), null, Color.White, 0.0f, Vector2.Zero, isEnemy ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.0f);
             //            spriteBatch.DrawString(Game1.font, type.name, pos, Color.Blue);
-            spriteBatch.DrawString(Game1.font, "" + this.stats.health, pos + new Vector2(16, 20), Color.LightGreen);
+            string healthString = "" + this.stats.health;
+            Vector2 healthStringSize = Game1.font.MeasureString(healthString);
+            spriteBatch.DrawString(Game1.font, healthString, pos + new Vector2(32 - healthStringSize.X, type.texture.Height), Color.LightGreen);
         }
 
         public override void DrawMouseOver(SpriteBatch spriteBatch)
@@ -145,61 +184,98 @@ namespace MagicChessPuzzles
             List<string> tooltipText = new List<string>();
             tooltipText.Add(type.name);
 
-            int attackDiff = stats.attack - permanentStats.attack;
-            if(attackDiff > 0)
-                tooltipText.Add("Attack " + permanentStats.attack + " + bonus " + (stats.attack - permanentStats.attack));
-            else if(attackDiff < 0)
-                tooltipText.Add("Attack " + stats.attack + "(was " + permanentStats.attack + ")");
-            else
-                tooltipText.Add("Attack " + permanentStats.attack);
+            if (stats.attack > 0)
+            {
+                int attackDiff = stats.attack - permanentStats.attack;
+                if (attackDiff > 0)
+                    tooltipText.Add("Attack " + permanentStats.attack + " + bonus " + (stats.attack - permanentStats.attack));
+                else if (attackDiff < 0)
+                    tooltipText.Add("Attack " + stats.attack + "(was " + permanentStats.attack + ")");
+                else
+                    tooltipText.Add("Attack " + permanentStats.attack);
+            }
             
             tooltipText.Add("Health " + stats.health + " (of " + stats.maxHealth + ")");
-            tooltipText.Add(mtype.description);
+            tooltipText.AddRange(LayeredImageGfx.Tooltip.StringToLines(mtype.description, Game1.font, 150));
+
+            int burnAmount = stats.burning+stats.burningNextTurn;
+            if (burnAmount > 0)
+            {
+                tooltipText.Add("On Fire " + burnAmount + " (" + burnAmount + " fire damage per turn)");
+            }
 
             Vector2 popupPos = drawPos + new Vector2(35, -14);
             LayeredImageGfx.Tooltip.DrawTooltip(spriteBatch, Game1.font, Game1.tooltipBG, tooltipText, popupPos);
         }
 
-        public void TakeDamage(GameState state, int attack, Permanent attacker)
+        public void TakeDamage(GameState gameState, int amount, DamageType type, Permanent attacker)
         {
+            if (amount <= 0)
+                return;
+
             if (stats.health > 0)
             {
-                stats.health -= attack;
+                if (type == DamageType.fire)
+                {
+                    if (stats.hasKeyword(Keyword.fireproof))
+                        return;
+
+                    if (stats.hasKeyword(Keyword.flammable))
+                    {
+                        permanentStats.burningNextTurn += amount;
+                    }
+                }
+
+                stats.health -= amount;
+                if (stats.health < 0)
+                    stats.health = 0;
                 permanentStats.health = stats.health;
                 if (stats.health <= 0)
                 {
-                    state.AddKilled(position);
-                    killedBy = attacker;
+                    gameState.Destroyed(position, attacker);
                 }
+
+                gameState.HandleTriggers(new TriggerEvent(TriggerType.onDamage, attacker, this));
             }
         }
 
-        public void Attack(GameState gameState, Minion target, SpriteAnimation animation)
+        public void Attack(GameState gameState, Minion target, MinionAnimationBatch attackAnim, MinionAnimationBatch recoverAnim)
         {
-            if (animation != null)
-            {
-                Vector2 basePos = drawPos;
-                Vector2 targetPos = target.drawPos;
-                targetPos = new Vector2(targetPos.X, targetPos.Y+target.type.texture.Height - type.texture.Height);
-                Vector2 attackPos = basePos + (targetPos - basePos) * 0.5f;
-                animation.AddMove(AnimationPhase.Attack, basePos, attackPos, type.texture, Color.White, spriteEffects);
-                animation.AddMove(AnimationPhase.Recover, attackPos, basePos, type.texture, Color.White, spriteEffects);
-            }
-            target.TakeDamage(gameState, stats.attack, this);
+            if (deleted)
+                return;
+
+            Vector2 basePos = drawPos;
+            Vector2 targetPos = target.drawPos;
+            targetPos = new Vector2(targetPos.X, targetPos.Y+target.type.texture.Height - type.texture.Height);
+            Vector2 attackPos = basePos + (targetPos - basePos) * 0.5f;
+            attackAnim.AddAnimation(this, basePos, attackPos);
+            recoverAnim.AddAnimation(this, attackPos, basePos);
+
+            gameState.HandleTriggers(new TriggerEvent(TriggerType.onAttack, this, target));
+            target.TakeDamage(gameState, stats.attack, DamageType.attack, this);
         }
 
-        public bool CheckAttack(GameState gameState, Point attackPos, SpriteAnimation animation)
+        public bool CheckAttack(GameState gameState, Point attackPos, MinionAnimationBatch attack, MinionAnimationBatch recover)
         {
-            Minion m = gameState.getMinionAt(attackPos);
-            if (m == null || isEnemy == m.isEnemy)
+            if (deleted)
                 return false;
 
-            Attack(gameState, m, animation);
+            Minion m = gameState.getMinionAt(attackPos);
+            if (m == null || isEnemy == m.isEnemy || m.stats.health <= 0 || m.stats.hasKeyword(Keyword.attackproof))
+                return false;
+
+            Attack(gameState, m, attack, recover);
             return true;
         }
 
-        public bool CheckAttacks(GameState gameState, SpriteAnimation animation)
+        public bool CheckAttacks(GameState gameState, MinionAnimationBatch attack, MinionAnimationBatch recover, MinionAnimationSequence animation)
         {
+            if (deleted || stats.attack <= 0)
+                return false;
+
+            if (attack.HasAnimation(this))
+                return false;
+
             Point[] attackOffsets = GameState.adjacentOffsets;
             switch (stats.range)
             {
@@ -215,7 +291,7 @@ namespace MagicChessPuzzles
             {
                 foreach (Point p in attackOffsets)
                 {
-                    if (CheckAttack(gameState, new Point(position.X + p.X, position.Y + p.Y), animation))
+                    if (CheckAttack(gameState, new Point(position.X + p.X, position.Y + p.Y), attack, recover))
                     {
                         return true;
                     }
@@ -224,15 +300,13 @@ namespace MagicChessPuzzles
             return false;
         }
 
-        public bool TakeAStep()
+        public override void ApplyOngoingLateEffects(GameState gameState, MinionAnimationSequence animation)
         {
-            if (!stats.slow)
-                return true;
+            base.ApplyOngoingLateEffects(gameState, animation);
 
-            bool willArrive = slow_movedHalfWay;
-            slow_movedHalfWay = !slow_movedHalfWay;
-
-            return willArrive;
+            TakeDamage(gameState, permanentStats.burning, DamageType.fire, this);
+            permanentStats.burning = permanentStats.burningNextTurn;
+            permanentStats.burningNextTurn = 0;
         }
     }
 }

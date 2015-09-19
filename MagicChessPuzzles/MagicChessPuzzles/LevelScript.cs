@@ -11,7 +11,7 @@ namespace MagicChessPuzzles
     class LevelType
     {
         public readonly Point levelSize;
-        public readonly Point spawnPoint;
+        public readonly List<Point> spawnPoint;
         public readonly Point wizardPos;
         public readonly List<ResourceAmount> startingResources;
         public readonly Texture2D floorTexture;
@@ -21,7 +21,11 @@ namespace MagicChessPuzzles
 
         public LevelType(JSONTable template, ContentManager content)
         {
-            spawnPoint = template.getArray("spawnPoint").toPoint();
+            spawnPoint = new List<Point>();
+            foreach(JSONArray spawnTemplate in template.getArray("spawnPoint").asJSONArrays())
+            {
+                spawnPoint.Add(spawnTemplate.toPoint());
+            }
             wizardPos = template.getArray("wizardPos").toPoint();
             levelSize = template.getArray("levelSize").toPoint();
             startingResources = ResourceAmount.createList(template.getJSON("startingResources"));
@@ -56,8 +60,9 @@ namespace MagicChessPuzzles
         LevelType levelType;
 
         public Point levelSize { get { return levelType.levelSize; } }
-        public Point spawnPoint { get { return levelType.spawnPoint; } }
+        public List<Point> spawnPoint { get { return levelType.spawnPoint; } }
         public Point wizardPos { get { return levelType.wizardPos; } }
+        public List<KeyValuePair<MinionType, Point>> scenery;
 
         public LevelScript(JSONTable template)
         {
@@ -72,6 +77,12 @@ namespace MagicChessPuzzles
                     thisTurn.Add(type);
                 }
                 spawns.Add(thisTurn);
+            }
+
+            scenery = new List<KeyValuePair<MinionType, Point>>();
+            foreach (JSONArray entry in template.getArray("scenery", JSONArray.empty).asJSONArrays())
+            {
+                scenery.Add(new KeyValuePair<MinionType,Point>(MinionType.get(entry.getString(0)), new Point(entry.getInt(1), entry.getInt(2))));
             }
 
             levelType = LevelType.get(template.getString("type"));
@@ -90,6 +101,10 @@ namespace MagicChessPuzzles
         public void InitState(GameState gameState)
         {
             levelType.InitState(gameState);
+            foreach (KeyValuePair<MinionType, Point> kv in scenery)
+            {
+                gameState.CreateMinions(kv.Key, false, kv.Value);
+            }
         }
 
         public bool FinishedSpawning(GameState gameState)
@@ -97,13 +112,26 @@ namespace MagicChessPuzzles
             return (spawns.Count+1 < gameState.turnNumber);
         }
 
-        public void Apply(GameState gameState, SpriteAnimation animation)
+        public void Apply(GameState gameState, MinionAnimationBatch moveAnim)
         {
-            if (gameState.turnNumber - 1 < spawns.Count)
+            for (int Idx = 0; Idx < spawns.Count; ++Idx)
             {
-                foreach (MinionType spawnType in spawns[gameState.turnNumber - 1])
+                int index = gameState.spawnIndices[Idx];
+                if (index < spawns[Idx].Count)
                 {
-                    gameState.CreateEnemy(spawnType, levelType.spawnPoint, animation);
+                    MinionType spawntype = spawns[Idx][index];
+                    if (spawntype != null)
+                    {
+                        if (gameState.getPermanentAt(levelType.spawnPoint[Idx]) == null)
+                        {
+                            gameState.CreateEnemy(spawntype, levelType.spawnPoint[Idx], moveAnim);
+                            gameState.spawnIndices[Idx]++;
+                        }
+                    }
+                    else
+                    {
+                        gameState.spawnIndices[Idx]++;
+                    }
                 }
             }
         }
@@ -113,13 +141,10 @@ namespace MagicChessPuzzles
             if (position.X < 0 || position.Y < 0 | position.X >= levelType.levelSize.X || position.Y >= levelType.levelSize.Y)
                 return true;
 
-
             switch (targetType)
             {
-                case TargetType.path:
-                    return levelType.spawnPoint.Y != position.Y || position.X == levelType.spawnPoint.X;
                 case TargetType.empty:
-                    return position == levelType.spawnPoint;
+                    return position.X >= levelType.spawnPoint[0].X;
                 default:
                     return false;
             }
@@ -131,7 +156,14 @@ namespace MagicChessPuzzles
             {
                 for (int Y = 0; Y < levelType.levelSize.Y; Y++)
                 {
-                    spriteBatch.Draw(Y == levelType.spawnPoint.Y ? levelType.pathTexture : levelType.floorTexture, GameState.GridToScreenPos(new Point(X, Y)), Color.White);
+                    spriteBatch.Draw(levelType.floorTexture, GameState.GridToScreenPos(new Point(X, Y)), Color.White);
+                }
+            }
+            for (int X = 0; X < levelType.levelSize.X; X++)
+            {
+                foreach (Point pos in levelType.spawnPoint)
+                {
+                    spriteBatch.Draw(levelType.pathTexture, GameState.GridToScreenPos(new Point(X, pos.Y)), Color.White);
                 }
             }
 
