@@ -114,6 +114,7 @@
     <Compile Include="InputState.cs" />
     <Compile Include="JSONTable.cs" />
     <Compile Include="LayeredImage.cs" />
+    <Compile Include="LevelScreen.cs" />
     <Compile Include="LevelScript.cs" />
     <Compile Include="Minion.cs" />
     <Compile Include="Permanent.cs" />
@@ -125,6 +126,7 @@
     <Compile Include="SpellCard.cs" />
     <Compile Include="SpriteAnimation.cs" />
     <Compile Include="Trigger.cs" />
+    <Compile Include="UIButton.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Game.ico" />

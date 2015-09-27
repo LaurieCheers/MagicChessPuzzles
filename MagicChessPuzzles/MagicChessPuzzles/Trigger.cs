@@ -9,6 +9,7 @@ namespace MagicChessPuzzles
     public enum TriggerType
     {
         onDamage,
+        beforeCombat,
         onAttack,
         onKill,
         onGain,
@@ -16,7 +17,11 @@ namespace MagicChessPuzzles
         onMove,
         onBlock,
         onSummon,
-        onCast,
+        beforeSpells,
+        afterSpells,
+        onSpell,
+        beforeActualSpell,
+        afterActualSpell,
     }
 
     public class TriggerEvent
@@ -24,6 +29,11 @@ namespace MagicChessPuzzles
         public TriggerType type;
         public TriggerItem source;
         public TriggerItem target;
+
+        public TriggerEvent(TriggerType type)
+        {
+            this.type = type;
+        }
 
         public TriggerEvent(TriggerType type, Permanent a)
         {
@@ -187,15 +197,15 @@ namespace MagicChessPuzzles
             return result;
         }
 
-        public bool WillTrigger(TriggerEvent evt, Permanent context)
+        public bool WillTrigger(TriggerType triggerType, EffectContext context)
         {
-            if (type != evt.type)
+            if (type != triggerType)
                 return false;
 
-            if (sourceTest != null && !sourceTest.Test(evt.source, context, evt))
+            if (sourceTest != null && !sourceTest.Test(context.trigger_source, context))
                 return false;
 
-            if (targetTest != null && !targetTest.Test(evt.target, context, evt))
+            if (targetTest != null && !targetTest.Test(context.trigger_target, context))
                 return false;
 
             return true;
@@ -209,11 +219,14 @@ namespace MagicChessPuzzles
 
     public abstract class TriggerItemTest
     {
-        public abstract bool Test(TriggerItem item, Permanent context, TriggerEvent evt);
+        public abstract bool Test(TriggerItem item, EffectContext context);
         
         public static TriggerItemTest create(JSONArray template)
         {
-            return create(template.getString(0), template);
+            if (template == null)
+                return null;
+            else
+                return create(template.getString(0), template);
         }
 
         public static TriggerItemTest create(string testType, JSONArray template)
@@ -224,7 +237,8 @@ namespace MagicChessPuzzles
                 case "TARGET": return new TriggerItemTest_TARGET();
                 case "isEnemy": return new TriggerItemTest_IsEnemy();
                 case "isAlly": return new TriggerItemTest_IsAlly();
-                case "isType": return new TriggerItemTest_MinionType(template);
+                case "isType":
+                case "ofType": return new TriggerItemTest_MinionType(template);
             }
 
             return null;
@@ -245,34 +259,43 @@ namespace MagicChessPuzzles
 
         class TriggerItemTest_SELF : TriggerItemTest
         {
-            public override bool Test(TriggerItem item, Permanent self, TriggerEvent evt) { return item.permanent == self; }
+            public override bool Test(TriggerItem item, EffectContext context) { return item.permanent == context.self; }
         }
 
         class TriggerItemTest_TARGET : TriggerItemTest
         {
-            public override bool Test(TriggerItem item, Permanent self, TriggerEvent evt) { return item.position == evt.target.position; }
+            public override bool Test(TriggerItem item, EffectContext context) { return item.position == context.target.position; }
         }
 
         class TriggerItemTest_IsEnemy : TriggerItemTest
         {
-            public override bool Test(TriggerItem item, Permanent self, TriggerEvent evt) { return item.permanent.isEnemy != self.isEnemy; }
+            public override bool Test(TriggerItem item, EffectContext context) { return item.permanent.isEnemy != context.self.isEnemy; }
         }
 
         class TriggerItemTest_IsAlly : TriggerItemTest
         {
-            public override bool Test(TriggerItem item, Permanent self, TriggerEvent evt) { return item.permanent.isEnemy == self.isEnemy; }
+            public override bool Test(TriggerItem item, EffectContext context) { return item.permanent.isEnemy == context.self.isEnemy; }
         }
 
         class TriggerItemTest_MinionType : TriggerItemTest
         {
-            MinionType mtype;
+            List<Property_TriggerItem> mtypes;
             public TriggerItemTest_MinionType(JSONArray template)
             {
-                mtype = MinionType.get(template.getString(1));
+                mtypes = new List<Property_TriggerItem>();
+                for (int Idx = 1; Idx < template.Length; ++Idx)
+                {
+                    mtypes.Add(Property_TriggerItem.create_MinionType(template.getString(Idx)));
+                }
             }
-            public override bool Test(TriggerItem item, Permanent self, TriggerEvent evt)
+            public override bool Test(TriggerItem item, EffectContext context)
             {
-                return item.permanent.type == mtype;
+                foreach(Property_TriggerItem mtype in mtypes)
+                {
+                    if (item.permanent.type == mtype.get(context).minionType)
+                        return true;
+                }
+                return false;
             }
         }
     }

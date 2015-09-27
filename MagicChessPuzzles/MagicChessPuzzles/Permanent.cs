@@ -77,9 +77,13 @@ namespace MagicChessPuzzles
 
         public void CheckTriggers(TriggerEvent evt, GameState gameState, List<WaitingTrigger> TriggersFound)
         {
+            if(type.triggers.Count == 0)
+                return;
+
+            EffectContext context = new EffectContext(gameState, this, evt, null);
             foreach (TriggeredAbility ability in type.triggers)
             {
-                if (ability.WillTrigger(evt, this))
+                if (ability.WillTrigger(evt.type, context))
                 {
                     TriggersFound.Add(new WaitingTrigger(evt, ability, this, position));
                 }
@@ -139,7 +143,8 @@ namespace MagicChessPuzzles
 
         public override void DrawMouseOver(SpriteBatch spriteBatch)
         {
-
+            Vector2 popupPos = drawPos + new Vector2(35, -14);
+            DragonGfx.Tooltip.DrawTooltip(spriteBatch, Game1.font, Game1.tooltipBG, baseCard.description, popupPos, DragonGfx.Tooltip.Align.LEFT);
         }
     }
 }

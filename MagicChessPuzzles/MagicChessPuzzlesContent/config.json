@@ -1,23 +1,19 @@
 {
-	"tooltipBG":
-	{
-		"texture":"square",
-		"draw":"stretched9grid",
-	},
+	"tooltipBG": { "texture":"square", "draw":"stretched9grid" },
+	"activeCardBG": { "texture":"uibutton", "draw":"stretched9grid" },
 
-	"activeCardBG":
-	{
-		"texture":"uibutton",
-		"draw":"stretched9grid",
-	},
+	"button3d": { "texture":"button3d", "draw":"stretched9grid" },
+	"button3d_hover": { "texture":"button3d_hover", "draw":"stretched9grid" },
+	"button3d_pressed": { "texture":"button3d_pressed", "draw":"stretched9grid" },
 
 	"resources":
 	{
-		"mana":{"name":"Mana", "texture":"mana"},
-		"fire":{"name":"Fire", "texture":"fire"},
+		"essence":{"name":"Essence", "texture":"essence"},
+		"fire":{"name":"Fire Gem", "texture":"fire"},
 		"metal":{"name":"Metal", "texture":"water"},
 		"serum":{"name":"Serum", "texture":"serum"},
 
+		"mana":{"name":"Mana", "texture":"mana"},
 		"earth":{"name":"Earth", "texture":"earth"},
 		"air":{"name":"Air", "texture":"air"},
 	},
@@ -34,93 +30,115 @@
 		"shaman":{"name":"Shaman", "texture":"shaman", "health":3, "attack":2, "spells":"shaman", "description":"Proud wielder of nature magic."},
 		"artificer":{"name":"Artificer", "texture":"artificer", "health":2, "attack":1, "spells":"artifice", "description":"Nerrrrrrrrrrrrd."},
 		"sprite":{"name":"Sprite", "texture":"sprite", "health":3, "attack":1, "description":"Innocent fluttery creature"},
-		"ooze":{"name":"Ooze", "texture":"ooze", "health":3, "attack":1, "description":"Basically, it's sentient yogurt."},
-		"spearman":{"name":"Spearman", "texture":"celt", "health":5, "attack":1, "range":"nearby", "description":"Can attack diagonally"},
+		"spearman":{"name":"Spearman", "texture":"celt", "spells":"spearman", "health":5, "attack":1, "range":"nearby", "description":"Can attack diagonally"},
 		"steelman":{"name":"Steel Man", "texture":"robot", "health":10, "attack":2, "keywords":["fireproof"], "triggers":[["onDamage", ["ANY"], ["SELF"], true, ["attack"]]], "description":"Fireproof; Whenever I'm damaged, make a bonus attack." },
+		"ooze":{"name":"Ooze", "texture":"ooze", "health":3, "attack":1, "spells":"ooze", "description":"Sentient yogurt, essentially."},
+		"cooze":{"name":"Corrosive Ooze", "texture":"cooze", "health":3, "attack":1, "spells":"ooze", "keywords":["corrosive"], "description":"Corrosive (Attacks deal acid damage, destroying armour.)"},
 
-		"demon":{"name":"Fire Demon", "texture":"demon", "health":77, "attack":7, "keywords":["fireproof"], "triggers":[["beforeMove", ["SELF"], ["area", "nearby", ["damage", 7, "fire"]]]], "description":"Fireproof; Before I move, deal 7 fire damage to all nearby creatures." },
-		"mummy":{"name":"Mummy", "texture":"mummy", "health":30, "attack":2, "keywords":["slow", "flammable"], "description":"Slow; Flammable (Fire damage continues)." },
+		"demon":{"name":"Lesser Demon", "texture":"chaos", "health":7, "attack":7, "keywords":["fireproof"], "triggers":[["beforeCombat", ["area", "nearby", ["damage", 7, "fire"]]]], "description":"Fireproof; Before combat, deal 7 fire damage to all nearby creatures." },
+//		"demon":{"name":"Fire Demon", "texture":"demon", "health":77, "attack":7, "keywords":["fireproof"], "triggers":[["beforeMove", ["SELF"], ["area", "nearby", ["damage", 7, "fire"]]]], "description":"Fireproof; Before I move, deal 7 fire damage to all nearby creatures." },
+		"mummy":{"name":"Mummy", "texture":"mummy", "onFireTexture":"mummy_onfire", "health":40, "attack":2, "keywords":["flammable"], "description":"Flammable (Fire damage repeats)." },
 		"hawk":{"name":"Hawk", "texture":"hawk", "health":1, "attack":3, "move":10, "description":"Move 10." },
 
-		"archer":{"name":"Sentry", "texture":"elf", "health":1, "attack":1, "range":"global", "description":"Attack anywhere."},
-		"barbarian":{"name":"Barbarian", "texture":"barbarian", "health":3, "attack":3, "description":"Don't call him the C-word."},
-		"replicant":{"name":"Replicator Ooze", "texture":"slime", "health":1, "attack":0, "triggers":[["onKill", ["ANY"], ["SELF"], ["minion", ["TRIGGERSOURCE"]]]], "description":"When killed, spawns a copy of the killer."},
-		"hedge":{"name":"Hedge", "texture":"hedge", "health":8, "attack":0, "description":"Basically a wall with leaves."},
-		"barrier":{"name":"Barrier", "texture":"barrier", "health":8, "attack":0, "description":"The strong, silent type."},
+		"archer":{"name":"Archer", "texture":"elf", "health":1, "attack":1, "range":"ahead", "description":"Attacks the nearest enemy straight ahead."},
+		"pyrologist":{"name":"Pyrologist", "texture":"pyrologist", "health":1, "attack":2, "attackCost":{"fire":1}, "range":"ahead", "description":"Attacks the nearest enemy straight ahead, at a cost of 1 fire gem."},
+		"barbarian":{"name":"Barbarian Hero", "texture":"barbarian", "health":2, "attack":3, "spells":"barbarian", "description":"He never wears clothes. That's how The Man keeps you down."},
+		"replicant":{"name":"Replicator Ooze", "texture":"slime", "health":1, "attack":0, "triggers":[["onKill", ["ANY"], ["SELF"], ["minion", "TRIGGERSOURCE"]]], "description":"When killed, spawns a copy of the killer."},
+		"hedge":{"name":"Hedge", "texture":"hedge", "health":8, "attack":0, "keywords":["flammable"], "description":"Flammable (Fire damage repeats). Fully grown."},
+		"seedling4":{"name":"Seedling", "texture":"seedling", "health":4, "attack":0, "triggers":[["beforeSpells", ["transform", "hedge"]]], "keywords":["flammable"], "description":"Flammable (Fire damage repeats). Double health each turn."},
+		"seedling2":{"name":"Seedling", "texture":"seedling", "health":2, "attack":0, "triggers":[["beforeSpells", ["transform", "seedling4"]]], "keywords":["flammable"], "description":"Flammable (Fire damage repeats). Double health each turn."},
+		"seedling":{"name":"Seedling", "texture":"seedling", "health":1, "attack":0, "triggers":[["beforeSpells", ["transform", "seedling2"]]], "keywords":["flammable"], "description":"Flammable (Fire damage repeats). Double health one more time."},
+		"barrier":{"name":"Barrier", "texture":"barrier", "health":8, "attack":0, "description":"Flammable (Fire damage continues)."},
 		"skeleton":{"name":"Skeleton", "texture":"skeleton", "health":4, "attack":2, "description":"He's all skin and bones. Well, bones."},
 		"bear":{"name":"Bear", "texture":"bear", "health":4, "attack":4, "description":"Made with 100% authentic bear."},
+		"pseudogre":{"name":"Ogre", "texture":"ogre", "health":15, "attack":3, "description":"He's just big boned."},
+		"elemental":{"name":"Elemental", "texture":"elemental", "health":4, "attack":8, "keywords":["fireform","intangible"], "description":"Fireform (Attack with fire damage; fire heals me; I die if someone walks into me)."},
+
+		"evil_elemental":{"name":"Elemental", "texture":"elemental", "health":4, "attack":8, "keywords":["fireform"], "description":"Fireform (Attack with fire damage; fire heals me)."},
 
 		"goblin":{"name":"Goblin", "texture":"goblin", "health":2, "attack":1, "description":"Easily killed cannon fodder. (Ssh! He doesn't know.)"},
-		"torchbearer":{"name":"Goblin Torchbearer", "texture":"torchbearer", "health":2, "attack":1, "triggers":[["onKill", ["ANY"], ["SELF"], ["gain", "fire", 1]]], "description":"Drops 1 fire energy when killed."},
+		"torchbearer":{"name":"Goblin Torchbearer", "texture":"torchbearer", "health":2, "attack":2, "triggers":[["onKill", ["ANY"], ["SELF"], ["gain", "fire", 1]]], "description":"Drops 1 fire gem when killed."},
 		"automaton":{"name":"Automaton", "texture":"automaton", "health":1, "attack":3, "triggers":[["onKill", ["ANY"], ["SELF"], ["gain", "metal", 1]]], "description":"Drops 1 scrap metal when killed."},
-		"ghoul":{"name":"Ghoul", "texture":"ghoul", "health":5, "attack":3, "description":"Undead. And sensitive about it."},
-		"ogre":{"name":"Ogre", "texture":"ogre", "health":15, "attack":3, "description":"He's just big-boned."},
+		"ghoul":{"name":"Ghoul", "texture":"ghoul", "health":5, "attack":2, "description":"Undead. And a bit touchy about it."},
+		"ogre":{"name":"Ogre", "texture":"ogre", "health":15, "attack":3, "keywords":["alive"], "description":"Alive (gain 1 essence when I die)."},
 		"treeman":{"name":"Treeman", "texture":"treeman", "health":50, "attack":2, "keywords":["slow"], "description":"Slow"},
 		"gorgon":{"name":"Gorgon", "texture":"gorgon", "health":20, "attack":1, "keywords":["slow"], "ongoing":["aura", "lowerTo", "attack", 1], "description":"Adjacent minions have attack 1."},
 		"fungus":{"name":"Fungus", "texture":"spawn", "health":1, "attack":1, "description":"Newborn! And just look how cute he is."},
 		"shambler":{"name":"Fungal Shambler", "texture":"mutant", "health":20, "attack":3, "keywords":["slow"], "ongoing_late":["area", "adjacent", ["minion", "fungus"]], "description":"Slow; Spawns a 1/1 fungus in every adjacent space each turn"},
-		"banshee":{"name":"Banshee", "texture":"banshee", "health":20, "attack":0, "move":1, "keywords":["unstoppable"], "description":"Move 2; Unstoppable. (Crush creatures that would block me.)"},
+		"banshee":{"name":"Banshee", "texture":"banshee", "health":6, "attack":3, "move":2, "description":"Move 2."},
+		"bodyguard":{"name":"Bodyguard", "texture":"bodyguard", "health":10, "armor":2, "attack":1, "move":1, "keywords":["alive"], "description":"Alive (gain 1 essence when I die)."},
+		"golem":{"name":"Golem", "texture":"golem", "health":30, "attack":0, "armor":1, "keywords":["slow","unstoppable"], "description":"Slow, Unstoppable. (Crush creatures that would block me.)"},
+		"king":{"name":"Bandit King", "texture":"mongol", "health":4, "attack":1, "keywords":["alive"], "ongoing":["aura", "add", "attack", 1], "description":"Alive. Nearby allies have +1 attack."},
+		"killer":{"name":"Killer", "texture":"killer", "health":5, "attack":6, "keywords":["alive"], "description":"Alive (gain 1 essence when I die)."},
+		"knight":{"name":"Knight", "texture":"knight", "health":4, "attack":5, "armor":3, "keywords":["alive"], "description":"Alive (gain 1 essence when I die)."},
 
 		"pine":{"name":"Pine Tree", "texture":"pine", "health":3, "attack":0, "move":0, "keywords":["attackproof"], "description":"Can't be attacked by creatures."},
 	},
 
 	"spells":
 	{
-		"necro":
+		"other":
 		[
-			{"name":"Raise Dead", "target":"empty", "type":"minion", "texture":"skeleton", "effect":["minion", "skeleton"], "description":"Summon a 2/4 skeleton"},
-			{"name":"Skeleton Archer", "target":"empty", "type":"minion", "texture":"elf", "cost":{"mana": 1}, "effect":["minion", "archer"], "description":"Summon a 1/1 archer that can attack up to 3 squares away"},
-		],
+			{"id":"pentagram", "name":"Pentagram", "target":"empty", "type":"production", "texture":"pentagram", "triggers":[["afterActualSpell", ["monster", "demon"]]], "description":"Spawn a demon every time you cast a spell" },
+			{"id":"crystal", "name":"Mana Crystal", "target":"empty", "type":"production", "texture":"diamond", "ongoing":["gain", "mana", 10], "description":"Produces 10 mana per turn" },
 
-		"shaman":
-		[
 			{"name":"Bearform", "type":"minion", "texture":"bear", "effect":["transform", "bear"], "description":"The shaman transforms into a 4/4 bear"},
 			{"name":"Sudden Growth", "target":"empty", "type":"minion", "texture":"hedge", "effect":["minion", "hedge"], "description":"Summon a hedge (0/8)"},
-			{"name":"Barbarian", "target":"empty", "type":"minion", "texture":"barbarian", "cost":{"fire": 1}, "effect":["minion", "barbarian"], "description":"Summon a 3/3 barbarian"},
-		],
+			{"name":"Raise Dead", "target":"empty", "type":"minion", "texture":"skeleton", "effect":["minion", "skeleton"], "description":"Summon a 2/4 skeleton"},
 
-		"artifice":
-		[
-			{"name":"Serrated Blades", "target":"empty", "type":"production", "texture":"banner_red", "cost":{"metal": 1}, "ongoing":["aura", "mul", "attack", 2], "description":"All nearby minions do double damage" },
-			{"name":"Steel Man", "target":"empty", "type":"production", "texture":"robot", "cost":{"metal": 1}, "effect":["minion", "steelman"], "description":"Summon a steel man (4/3, produces metal when damaged)." },
-		],
-
-		"ooze":
-		[
-			{"name":"Gush", "target":"empty", "type":"minion", "texture":"ooze", "effect":["minion", "ooze"], "description":"Summon an ooze (1/3)"},
-			{"name":"Extract", "target":"friend", "type":"minion", "texture":"ooze", "effect":["sequence", ["damage", 1, "acid"], ["gain", "serum", 1]], "description":"Deal 1 damage to a ally and gain 1 serum."},
-			{"name":"Mutagen", "target":"enemy", "type":"minion", "texture":"ooze", "cost":{"serum": 1}, "effect":["sequence", ["damage", 3, "acid"], ["minion", "ooze"]], "description":"Deal 3 damage to a creature. Then, if it's gone, summon an ooze (1/3)."},
-			{"name":"Deluge", "target":"empty", "type":"minion", "texture":"ooze", "cost":{"serum": 2}, "effect":["sequence", ["minion", "ooze"], ["area", "adjacent", ["minion", "ooze"]]], "description":"Summon an ooze (1/3) in target square and each adjacent square"},
+//			{"name":"Gush", "target":"empty", "type":"minion", "texture":"ooze", "effect":["minion", "ooze"], "description":"Summon an ooze (1/3)"},
+//			{"name":"Extract", "target":"friend", "type":"minion", "texture":"ooze", "effect":["sequence", ["damage", 1, "acid"], ["gain", "serum", 1]], "description":"Deal 1 damage to a ally and gain 1 serum."},
+//			{"name":"Mutagen", "target":"enemy", "type":"minion", "texture":"ooze", "cost":{"serum": 1}, "effect":["sequence", ["damage", 3, "acid"], ["minion", "ooze"]], "description":"Deal 3 damage to a creature. Then, if it's gone, summon an ooze (1/3)."},
+//			{"name":"Deluge", "target":"empty", "type":"minion", "texture":"ooze", "cost":{"serum": 2}, "effect":["sequence", ["minion", "ooze"], ["area", "adjacent", ["minion", "ooze"]]], "description":"Summon an ooze (1/3) in target square and each adjacent square"},
 //			{"name":"Bloom", "target":"enemy", "type":"minion", "texture":"ooze", "cost":{"serum": 2}, "effect":["sequence", ["minion", "ooze"], ["gainTrigger", "SELF", ["onDamage", ["ANY"], ["ooze"], ["gain", "serum", 1]]]], "description":"Summon an ooze (1/3). Biomancer gains 'Whenever an ooze gets damaged, you gain 1 serum'."},
-		],
 
-		"main":
-		[
-			{"name":"Rewind", "type":"special", "texture":"rewind", "effect":["rewind"], "description":"Undo your last move" },
-			{"name":"Wait", "type":"special", "texture":"wait", "description":"Pass the turn without casting a spell" },
-//			{"name":"Mana Crystal", "target":"empty", "type":"production", "texture":"diamond", "ongoing":["gain", {"mana": 10}], "description":"Produces 10 mana per turn" },
-//			{"name":"Gust", "type":"production", "texture":"gust", "effect":["gain", {"air": 12}], "description":"Produce 12 Air energy"},
-//			{"name":"Leyline", "target":"empty", "type":"production", "texture":"leyline", "ongoing":["gain", {"earth": 2}], "description":"Produces 2 Earth energy per turn" },
-//			{"name":"Torch", "target":"empty", "type":"production", "texture":"torch", "ongoing":["gain", {"fire": 4}], "upkeep":{"mana": 4}, "description":"Converts 4 mana into Fire energy each turn" },
-//			{"name":"Wellspring", "target":"empty", "type":"production", "texture":"wellspring", "cost":{"mana": 10}, "ongoing":["gain", {"water": 3}], "description":"Produces 3 Water energy per turn" },
+			{"name":"Serrated Blades", "unlocked":true, "spellSet":"spearman", "target":"empty", "type":"production", "texture":"banner_red", "cost":{"metal": 1}, "ongoing":["aura", "mul", "attack", 2], "description":"All nearby minions do double damage" },
+			{"name":"Steel Man", "unlocked":true, "spellSet":"spearman", "target":"empty", "type":"production", "texture":"robot", "cost":{"metal": 1}, "effect":["minion", "steelman"], "description":"Summon a steel man (4/3, produces metal when damaged)." },
+//			{"name":"Gust", "type":"production", "texture":"gust", "effect":["gain", "air", 12], "description":"Produce 12 Air energy"},
+//			{"name":"Leyline", "target":"empty", "type":"production", "texture":"leyline", "ongoing":["gain", "earth", 2], "description":"Produces 2 Earth energy per turn" },
+//			{"name":"Torch", "target":"empty", "type":"production", "texture":"torch", "ongoing":["gain", "fire", 4], "upkeep":{"mana": 4}, "description":"Converts 4 mana into Fire energy each turn" },
+//			{"name":"Wellspring", "target":"empty", "type":"production", "texture":"wellspring", "cost":{"mana": 10}, "ongoing":["gain", "water", 3], "description":"Produces 3 Water energy per turn" },
 
 //			{"name":"Necromancer", "target":"empty", "type":"minion", "texture":"necromancer", "cost":{"mana": 1}, "effect":["minion", "necromancer"], "description":"Summon a necromancer (2/1)"},
-			{"name":"Sprite", "target":"empty", "type":"minion", "texture":"sprite", "effect":["minion", "sprite"], "description":"Summon a sprite (1/3)"},
 			{"name":"Biomancer", "target":"empty", "type":"minion", "texture":"biomancer", "cost":{"mana": 1}, "effect":["minion", "biomancer"], "description":"Summon a biomancer (1/3)"},
 			{"name":"Artificer", "target":"empty", "type":"minion", "texture":"artificer", "cost":{"mana": 1}, "effect":["minion", "artificer"], "description":"Summon an artificer (1/2)"},
 			{"name":"Shaman", "target":"empty", "type":"minion", "texture":"shaman", "cost":{"mana": 1}, "effect":["minion", "shaman"], "description":"Summon a shaman (2/3)"},
-			{"name":"Spearman", "target":"empty", "type":"minion", "texture":"celt", "cost":{"mana": 1}, "effect":["minion", "spearman"], "description":"Summon a spearman (1/5, can attack diagonally)"},
-			{"name":"Firebolt", "upgradeCost":{"fire":1}, "target":"minion", "type":"minion", "texture":"lightning", "effect":["damage", 1, "fire"], "description":"Deal 1 damage to any creature.",
-//				"upgrades":[
-//					{"name":"Firebolt 2", "upgradeCost":{"fire":1}, "target":"enemy", "type":"minion", "texture":"lightning", "effect":["damage", 2, "fire"], "description":"Deal 2 damage to any enemy"},
-//					{"name":"Firebolt 3", "target":"enemy", "type":"minion", "texture":"lightning", "effect":["damage", 3, "fire"], "description":"Deal 3 damage to any enemy"},
-//				]
-			},
-			{"name":"Amplify", "target":"numeric_spell", "type":"modifier", "texture":"candle", "effect":["rewrite_add", 1], "description":"Add 1 to all numbers in a spell"},
+			{"id":"amplify", "name":"Amplify", "target":"numeric_spell", "type":"modifier", "texture":"candle", "effect":["rewrite_add", 1], "description":"Add 1 to all numbers in a spell"},
 
 			{"name":"Replicator Ooze", "target":"empty", "type":"minion", "texture":"slime", "effect":["minion", "replicant"], "description":"Summon a replicant (0/1, copies its killer)."},
 
 	//		{"name":"Banner of Hope", "target":"empty", "type":"production", "texture":"banner_blue", "cost":{"water": 10}, "ongoing":["aura", "mul", "health", 2], "description":"Doubles all nearby minions' health" },
+		],
+
+		"rhs":
+		[
+			{"id":"acidify", "name":"Acidify", "spellSet":"ooze", "target":"none", "type":"production", "texture":"cooze", "effect":["all", ["ofType", "ooze"], ["transform", "cooze"]], "description":"Upgrade: All oozes now deal acid damage (destroys armour)."},
+			{"id":"mitosis", "name":"Mitosis", "spellSet":"ooze", "target":"friend", "targetTest":["isType", "ooze", "cooze"], "type":"production", "texture":"ooze", "effect":["sequence", ["area", "adjacent", ["minion", "TRIGGERTARGET"]], ["kill"]], "description":"Kill a friendly ooze. Summon an ooze in each adjacent square."},
+
+			{"id":"warcry", "name":"War Cry", "spellSet":"barbarian", "target":"friend", "type":"production", "texture":"warcry", "effect":["all", ["ofType", "TARGET"], ["attack"]], "description":"Target creature, and all creatures of the same type, make a bonus attack." },
+			{"id":"banner", "name":"Serrated Blades", "spellSet":"barbarian", "target":"empty", "type":"production", "texture":"banner_red", "ongoing":["aura", "add", "attack", 1], "description":"All nearby minions do +1 damage" },
+
+			{"id":"pierce", "name":"Pierce", "spellSet":"spearman", "cost":{"fire": 1}, "target":"friend", "type":"production", "texture":"celt", "effect":["attack", ["count", ["ofType", "TARGET"]]], "description":"Target creature makes a bonus attack with bonus damage equal to the number of creatures of that type." },
+		],
+
+		"main":
+		[
+			{"id":"rewind", "unlocked":true, "name":"Rewind", "type":"special", "texture":"rewind", "effect":["rewind"], "description":"Undo your last move" },
+			{"id":"wait", "unlocked":true, "name":"Wait", "type":"special", "texture":"wait", "description":"Pass the turn without casting a spell" },
+
+//			{"id":"sprite", "unlocked":true, "name":"Sprite", "target":"empty", "type":"minion", "texture":"sprite", "effect":["minion", "sprite"], "description":"Summon a sprite (1/3)"},
+//			{"id":"archer", "unlocked":false, "name":"Archer", "target":"empty", "type":"minion", "texture":"elf", "cost":{"essence": 1}, "effect":["minion", "archer"], "description":"Summon an archer (1/1, shoots straight ahead.)"},
+
+			{"id":"firebolt", "name":"Firebolt", "target":"minion", "type":"production", "texture":"lightning", "effect":["damage", 1, "fire"], "description":"Deal 1 damage to any creature."},
+			{"name":"Ooze", "unlocked":true, "target":"empty", "type":"minion", "texture":"ooze", "effect":["minion", "ooze"], "description":"Summon an ooze (1/3)."},
+			{"id":"wall", "name":"Turbotany", "target":"empty", "type":"minion", "texture":"hedge", "effect":["minion", "seedling"], "description":"Summon a seedling (0/1, grows to 0/8 after 3 turns)"},
+			{"id":"spearman", "name":"Spearman", "target":"empty", "type":"minion", "texture":"celt", "cost":{"essence": 1}, "effect":["minion", "spearman"], "description":"Summon a spearman (1/5, can attack diagonally)"},
+			{"id":"barbarian", "name":"Barbarian Hero", "target":"empty", "type":"minion", "texture":"barbarian", "cost":{"essence": 1}, "effect":["minion", "barbarian"], "description":"Summon a barbarian (3/2)"},
+			{"id":"pyrologist", "name":"Pyrologist", "target":"empty", "type":"minion", "texture":"pyrologist", "cost":{"essence": 1}, "effect":["minion", "pyrologist"], "description":"Summon a pyrologist (2/1, shoots straight ahead)"},
+			{"id":"pseudogre", "name":"Ogre", "target":"empty", "type":"minion", "texture":"ogre", "cost":{"essence": 5}, "effect":["minion", "pseudogre"], "description":"Summon an ogre (3/15)"},
+			{"id":"awaken", "name":"Awaken", "target":"friend", "targetTest":["isType", "pine"], "type":"minion", "texture":"treeman_cropped", "cost":{"essence": 1}, "effect":["sequence", ["transform", "treeman"]], "description":"Transform a tree into a treeman (2/50)"},
+			{"id":"elemental", "name":"Elemental", "target":"empty", "type":"minion", "texture":"elemental", "cost":{"fire": 1}, "effect":["minion", "elemental"], "description":"Summon an elemental (8/4)"},
+			{"id":"essenceburn", "name":"Essence Burn", "type":"production", "texture":"fire", "effect":["sequence", ["gain", "fire", ["amountOf", "essence"]], ["lose", "essence", ["amountOf", "essence"]]], "description":"Convert all your essence into fire gems."},
 		],
 	},
 
@@ -131,24 +149,54 @@
 			"wizardPos":[0,2],
 			"spawnPoint":[[9,2]],
 			"levelSize":[10,5],
-			"startingResources":{"mana":5, "metal":1},
+			"startingResources":{"essence":5},
 			"floorTexture":"floor",
+			"entranceTexture":"entrance",
+			"pathTexture":"path",
+		},
+		"double":
+		{
+			"wizardPos":[0,2],
+			"spawnPoint":[[9,1],[9,3]],
+			"levelSize":[10,5],
+			"startingResources":{"essence":5},
+			"floorTexture":"floor",
+			"entranceTexture":"entrance",
+			"pathTexture":"path",
+		},
+		"triple":
+		{
+			"wizardPos":[0,2],
+			"spawnPoint":[[9,1],[9,2],[9,3]],
+			"levelSize":[10,5],
+			"startingResources":{"essence":5},
+			"floorTexture":"floor",
+			"entranceTexture":"entrance",
 			"pathTexture":"path",
 		}
 	},
 
-	"levels":
+	"chapters":
 	[
-//		{"type":"normal","monsters":[["torchbearer","goblin","goblin","","torchbearer","goblin","goblin"]]},
-//		{"type":"normal","monsters":[["steelman","automaton","automaton"]]},
-//		{"type":"normal","monsters":[["goblin","ghoul","ghoul","ghoul","goblin","ghoul","ghoul"]]},
-//		{"type":"normal","monsters":[["ogre","ogre"]]},
-		{"type":"normal","monsters":[["hawk","hawk","hawk","hawk"]]},
-		{"type":"normal","monsters":[["goblin","goblin","banshee","banshee"]], "scenery":[["pine", 5,1], ["pine", 7,3]]},
-		{"type":"normal","monsters":[["mummy","mummy","mummy","mummy","mummy"]]},
-		{"type":"normal","monsters":[["demon", "demon"]]},
-		{"type":"normal","monsters":[["shambler"]]},
-		{"type":"normal","monsters":[["treeman"]]},
-		{"type":"normal","monsters":[["torchbearer","goblin","goblin","","torchbearer","goblin","goblin"]]},
+		[
+			{"name":"Tutorial","type":"normal","monsters":[["goblin","goblin","goblin","goblin"]], "unlock":"firebolt"},
+			{"name":"A Bit Tougher", "type":"normal","monsters":[["ghoul","ghoul","ghoul","ghoul","","ghoul","","ghoul"]], "unlock":"wall"},
+			{"name":"Fast", "type":"triple","monsters":[["banshee"],[],["","banshee"]], "unlock":"spearman"},
+			{"name":"Even Faster", "type":"triple","monsters":[["hawk","","","hawk","hawk"],["","hawk","","","hawk","hawk"],["","","hawk","hawk","","hawk"]], "unlock":"barbarian"},
+			//{"name":"Golem", "type":"normal","monsters":[["golem"]], "unlock":"acidify"},
+			{"name":"Bodyguard", "type":"normal","monsters":[["bodyguard"]], "unlock":"acidify"},
+			{"name":"Tough Nuts", "type":"triple","monsters":[["bodyguard"],["","","bodyguard"],["bodyguard"]], "unlock":"warcry"},
+			{"name":"Walking Swarm", "type":"normal","monsters":[["shambler"]], "unlock":"mitosis"},
+			{"name":"Treeman", "type":"normal","monsters":[["treeman"]], "scenery":[["pine",5,1],["pine",7,1],["pine",6,3],["pine",8,3],["pine",8,1]], "unlock":"awaken"},
+		],
+		[
+			{"name":"Forest Fires", "type":"double","monsters":[["evil_elemental","evil_elemental","evil_elemental","evil_elemental","evil_elemental"],["evil_elemental","evil_elemental","evil_elemental","evil_elemental","evil_elemental"]], "scenery":[["pine",5,2],["pine",6,2],["pine",7,2],["pine",8,2],["pine",5,0],["pine",8,0],["pine",7,4],["pine",8,4]], "unlock":"elemental"},
+			{"name":"Mummy's Boys", "type":"normal","monsters":[["torchbearer","mummy","mummy","mummy","mummy"]], "unlock":"essenceburn"},
+			{"name":"Ogre Hunting Party", "type":"triple","monsters":[["","hawk","hawk","hawk","hawk"], ["ogre","","ogre"], ["","hawk","hawk","hawk","hawk"]], "unlock":"pseudogre"},
+			{"name":"Hit Squad", "type":"normal","monsters":[["killer","killer","killer","killer","killer"]], "unlock":"pyrologist"},
+			{"name":"Black Magic", "type":"triple","monsters":[["torchbearer","torchbearer","torchbearer"],[],["torchbearer","torchbearer","torchbearer"]], "ongoingEffects":[["pentagram", 8,2]], "unlock":"pierce"},
+			{"name":"Golem Army", "type":"triple","monsters":[["golem","","","","","","","","golem"],["","","golem","","","","golem"],["golem","","","","","","","","golem"]]},
+			{"name":"Regicide", "type":"triple","monsters":[["","bodyguard"],["bodyguard","king","bodyguard"],["","bodyguard"]]},
+		]
 	],
 }

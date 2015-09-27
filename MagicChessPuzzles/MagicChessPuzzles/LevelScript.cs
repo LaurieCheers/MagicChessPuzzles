@@ -15,6 +15,7 @@ namespace MagicChessPuzzles
         public readonly Point wizardPos;
         public readonly List<ResourceAmount> startingResources;
         public readonly Texture2D floorTexture;
+        public readonly Texture2D entranceTexture;
         public readonly Texture2D pathTexture;
 
         public static Dictionary<string, LevelType> levelTypes;
@@ -30,13 +31,14 @@ namespace MagicChessPuzzles
             levelSize = template.getArray("levelSize").toPoint();
             startingResources = ResourceAmount.createList(template.getJSON("startingResources"));
             floorTexture = content.Load<Texture2D>(template.getString("floorTexture"));
+            entranceTexture = content.Load<Texture2D>(template.getString("entranceTexture"));
             pathTexture = content.Load<Texture2D>(template.getString("pathTexture"));
         }
 
         public void InitState(GameState gameState)
         {
             gameState.GainResources(startingResources);
-            gameState.CreateMinions(MinionType.get("wizard"), false, wizardPos);
+            gameState.wizard = gameState.CreateMinion(MinionType.get("wizard"), false, wizardPos);
         }
 
         public static void load(JSONTable template, ContentManager content)
@@ -58,15 +60,19 @@ namespace MagicChessPuzzles
     {
         List<List<MinionType>> spawns;
         LevelType levelType;
+        public readonly string name;
+        public Card unlocksCard;
 
         public Point levelSize { get { return levelType.levelSize; } }
         public List<Point> spawnPoint { get { return levelType.spawnPoint; } }
         public Point wizardPos { get { return levelType.wizardPos; } }
         public List<KeyValuePair<MinionType, Point>> scenery;
+        public List<KeyValuePair<Card, Point>> ongoingEffects;
 
         public LevelScript(JSONTable template)
         {
             spawns = new List<List<MinionType>>();
+            name = template.getString("name", "UNNAMED");
             JSONArray spawnTemplate = template.getArray("monsters");
             for (int Idx = 0; Idx < spawnTemplate.Length; ++Idx)
             {
@@ -85,7 +91,17 @@ namespace MagicChessPuzzles
                 scenery.Add(new KeyValuePair<MinionType,Point>(MinionType.get(entry.getString(0)), new Point(entry.getInt(1), entry.getInt(2))));
             }
 
+            ongoingEffects = new List<KeyValuePair<Card, Point>>();
+            foreach (JSONArray entry in template.getArray("ongoingEffects", JSONArray.empty).asJSONArrays())
+            {
+                ongoingEffects.Add(new KeyValuePair<Card, Point>(Card.get(entry.getString(0)), new Point(entry.getInt(1), entry.getInt(2))));
+            }
+
             levelType = LevelType.get(template.getString("type"));
+
+            string unlock = template.getString("unlock", null);
+            if(unlock != null)
+                unlocksCard = Card.get(unlock);
         }
 
         public static List<LevelScript> load(JSONArray levels)
@@ -103,7 +119,12 @@ namespace MagicChessPuzzles
             levelType.InitState(gameState);
             foreach (KeyValuePair<MinionType, Point> kv in scenery)
             {
-                gameState.CreateMinions(kv.Key, false, kv.Value);
+                gameState.CreateMinion(kv.Key, false, kv.Value);
+            }
+            MinionAnimationSequence anim = new MinionAnimationSequence();
+            foreach (KeyValuePair<Card, Point> kv in ongoingEffects)
+            {
+                gameState.PlayCard(kv.Key, null, TriggerItem.create(kv.Value), anim);
             }
         }
 
@@ -122,7 +143,7 @@ namespace MagicChessPuzzles
                     MinionType spawntype = spawns[Idx][index];
                     if (spawntype != null)
                     {
-                        if (gameState.getPermanentAt(levelType.spawnPoint[Idx]) == null)
+                        if (gameState.getMinionAt(levelType.spawnPoint[Idx]) == null)
                         {
                             gameState.CreateEnemy(spawntype, levelType.spawnPoint[Idx], moveAnim);
                             gameState.spawnIndices[Idx]++;
@@ -152,9 +173,9 @@ namespace MagicChessPuzzles
 
         public void DrawBackground(SpriteBatch spriteBatch)
         {
-            for (int X = 0; X < levelType.levelSize.X; X++)
+            for (int Y = 0; Y < levelType.levelSize.Y; Y++)
             {
-                for (int Y = 0; Y < levelType.levelSize.Y; Y++)
+                for (int X = 0; X < levelType.levelSize.X; X++)
                 {
                     spriteBatch.Draw(levelType.floorTexture, GameState.GridToScreenPos(new Point(X, Y)), Color.White);
                 }
@@ -165,6 +186,10 @@ namespace MagicChessPuzzles
                 {
                     spriteBatch.Draw(levelType.pathTexture, GameState.GridToScreenPos(new Point(X, pos.Y)), Color.White);
                 }
+            }
+            for (int Y = 0; Y < levelType.levelSize.Y; Y++)
+            {
+                spriteBatch.Draw(levelType.entranceTexture, GameState.GridToScreenPos(new Point(levelType.levelSize.X - 1, Y)), Color.White);
             }
 
             Point mouseOverPos = GameState.ScreenToGridPos(Game1.inputState.MousePos);

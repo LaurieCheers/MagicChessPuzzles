@@ -77,6 +77,16 @@ namespace MagicChessPuzzles
             this.trigger_target = basis.trigger_target;
             this.animation = basis.animation;
         }
+
+        public EffectContext(EffectContext basis, Permanent p)
+        {
+            this.gameState = basis.gameState;
+            this.self = basis.self;
+            this.target = TriggerItem.create(p);
+            this.trigger_source = basis.trigger_source;
+            this.trigger_target = basis.trigger_target;
+            this.animation = basis.animation;
+        }
     }
 
     public abstract class Effect_Base
@@ -90,14 +100,20 @@ namespace MagicChessPuzzles
                     return new Effect_Rewind(template);
                 case "gain":
                     return new Effect_GainResources(template);
+                case "lose":
+                    return new Effect_LoseResources(template);
                 case "minion":
                     return new Effect_CreateMinion(template);
+                case "monster":
+                    return new Effect_Monster(template);
                 case "attack":
                     return new Effect_Attack(template);
                 case "aura":
                     return new Effect_Aura(template);
                 case "damage":
                     return new Effect_Damage(template);
+                case "kill":
+                    return new Effect_Kill();
                 case "area":
                     return new Effect_Area(template);
                 case "transform":
@@ -108,6 +124,10 @@ namespace MagicChessPuzzles
                     return new Effect_Sequence(template);
                 case "rewrite_add":
                     return new Effect_Rewrite_Add(template);
+                case "upgrade":
+                    return new Effect_Upgrade(template);
+                case "all":
+                    return new Effect_All(template);
                 default:
                     throw new ArgumentException("Unknown effect type: " + effectType);
             }
@@ -129,39 +149,50 @@ namespace MagicChessPuzzles
 
     class Effect_GainResources : Effect_Base
     {
-        List<ResourceAmount> resources;
+        ResourceType type;
+        Property_int amount;
 
         public Effect_GainResources(JSONArray template)
         {
-            if (template.Length == 3)
-            {
-                resources = new List<ResourceAmount>();
-                resources.Add(new ResourceAmount(ResourceType.get(template.getString(1)), template.getInt(2)));
-            }
-            else
-            {
-                resources = ResourceAmount.createList(template.getJSON(1));
-            }
+            type = ResourceType.get(template.getString(1));
+            amount = Property_int.create(template.getProperty(2));
         }
 
         public override void Apply(EffectContext context)
         {
-            context.gameState.GainResources(resources);
+            context.gameState.GainResource(type,amount.get(context));
+        }
+    }
+
+    class Effect_LoseResources : Effect_Base
+    {
+        ResourceType type;
+        Property_int amount;
+
+        public Effect_LoseResources(JSONArray template)
+        {
+            type = ResourceType.get(template.getString(1));
+            amount = Property_int.create(template.getProperty(2));
+        }
+
+        public override void Apply(EffectContext context)
+        {
+            context.gameState.GainResource(type, -amount.get(context));
         }
     }
 
     class Effect_CreateMinion : Effect_Base
     {
-        Property<TriggerItem> type;
+        Property_TriggerItem type;
 
         public Effect_CreateMinion(JSONArray template)
         {
-            type = MinionType.createProperty(template, 1);
+            type = Property_TriggerItem.create_MinionType(template.getString(1));
         }
 
         public override void Apply(EffectContext context)
         {
-            context.gameState.CreateMinions
+            context.gameState.CreateMinion
             (
                 type.get(context).minionType,
                 context.self == null ? false : context.self.isEnemy,
@@ -169,22 +200,41 @@ namespace MagicChessPuzzles
             );
         }
     }
-
-    class Effect_Transform : Effect_Base
+    class Effect_Monster : Effect_Base
     {
-        Property<TriggerItem> type;
+        Property_TriggerItem type;
 
-        public Effect_Transform(JSONArray template)
+        public Effect_Monster(JSONArray template)
         {
-            type = MinionType.createProperty(template, 1);
+            type = Property_TriggerItem.create_MinionType(template.getString(1));
         }
 
         public override void Apply(EffectContext context)
         {
-            Permanent p = context.target.permanent;
-            if (p is Minion)
+            context.gameState.CreateMinion
+            (
+                type.get(context).minionType,
+                true,
+                context.target.position
+            );
+        }
+    }
+
+    class Effect_Transform : Effect_Base
+    {
+        Property_TriggerItem type;
+
+        public Effect_Transform(JSONArray template)
+        {
+            type = Property_TriggerItem.create_MinionType(template.getString(1));
+        }
+
+        public override void Apply(EffectContext context)
+        {
+            Minion m = context.target.minion;
+            if (m != null)
             {
-                ((Minion)p).Transform(type.get(context).minionType);
+                m.Transform(type.get(context).minionType);
             }
         }
     }
@@ -246,13 +296,18 @@ namespace MagicChessPuzzles
 
     class Effect_Attack : Effect_Base
     {
+        Property_int bonusDamage;
+
         public Effect_Attack(JSONArray template)
         {
+            if(template.Length > 1)
+                bonusDamage = Property_int.create( template.getArray(1) );
         }
 
         public override void Apply(EffectContext context)
         {
-            if (context.self is Minion)
+            Minion attacker = context.target.minion;
+            if(attacker != null)
             {
                 MinionAnimationBatch attackAnim;
                 MinionAnimationBatch recoverAnim;
@@ -266,8 +321,8 @@ namespace MagicChessPuzzles
                     attackAnim = context.animation.AddBatch(new GameState(context.gameState), Game1.ATTACK_ANIM_DURATION);
                     recoverAnim = context.animation.AddBatch(context.gameState, Game1.RECOVER_ANIM_DURATION);
                 }
-                
-                ((Minion)context.self).CheckAttacks(context.gameState, attackAnim, recoverAnim, context.animation);
+
+                attacker.CheckAttacks(context.gameState, bonusDamage != null? bonusDamage.get(context): 0, attackAnim, recoverAnim, context.animation);
 
                 recoverAnim.SetInitialGameState(new GameState(context.gameState));
             }
@@ -288,9 +343,9 @@ namespace MagicChessPuzzles
         public override void Apply(EffectContext context)
         {
             Point basePos = context.target.position;
-            foreach (Point offset in context.gameState.getPositionsForRange(basePos, range))
+            foreach (Point offset in context.gameState.getOffsetsForRange(range))
             {
-                effect.Apply(new EffectContext(context, offset));
+                effect.Apply(new EffectContext(context, new Point(basePos.X+offset.X, basePos.Y+offset.Y)));
             }
         }
 
@@ -298,10 +353,43 @@ namespace MagicChessPuzzles
         public override bool HasAnArea() {return true;}
     }
 
+    class Effect_All : Effect_Base
+    {
+        TriggerItemTest test;
+        Effect_Base effect;
+
+        public Effect_All(JSONArray template)
+        {
+            test = TriggerItemTest.create(template.getArray(1));
+            effect = Effect_Base.create(template.getArray(2));
+        }
+
+        public override void Apply(EffectContext context)
+        {
+            Point basePos = context.target.position;
+            foreach(Minion m in context.gameState.getMinions(test, context))
+            {
+                effect.Apply(new EffectContext(context, m));
+            }
+        }
+
+        public override bool HasANumber() { return effect.HasANumber(); }
+        public override bool HasAnArea() { return true; }
+    }
+
+    class Effect_Kill : Effect_Base
+    {
+        public override void Apply(EffectContext context)
+        {
+            Minion m = context.target.minion;
+            context.gameState.Destroyed(m.position, context.self);
+        }
+    }
+
     class Effect_Damage : Effect_Base
     {
         DamageType type;
-        Property<int> amount;
+        Property_int amount;
 
         public Effect_Damage(JSONArray template)
         {
@@ -321,7 +409,7 @@ namespace MagicChessPuzzles
 
     class Effect_Rewrite_Add : Effect_Base
     {
-        Property<int> amount;
+        Property_int amount;
         public Effect_Rewrite_Add(JSONArray template)
         {
             amount = new Property_Literal_int(template.getInt(1));
@@ -365,9 +453,12 @@ namespace MagicChessPuzzles
             List<Minion> minions = context.gameState.getMinionsInRange(Range.nearby, context.target.position);
             foreach (Minion m in minions)
             {
-                float oldValue = GetStat(m);
-                float newValue = ApplyOperator(oldValue);
-                SetStat(m, newValue);
+                if (m.isEnemy == context.self.isEnemy)
+                {
+                    float oldValue = GetStat(m);
+                    float newValue = ApplyOperator(oldValue);
+                    SetStat(m, newValue);
+                }
             }
         }
 
@@ -416,6 +507,39 @@ namespace MagicChessPuzzles
         public override void Apply(EffectContext context)
         {
             throw new InvalidOperationException("Rewind effect should not be executed");
+        }
+    }
+
+    class Effect_Upgrade : Effect_Base
+    {
+        int attack;
+        int health;
+        List<Keyword> keywords;
+        List<TriggeredAbility> triggers;
+
+        public Effect_Upgrade(JSONArray template)
+        {
+            attack = template.getInt(1);
+            health = template.getInt(2);
+            keywords = new List<Keyword>();
+            foreach (string s in template.getArray(3).asStrings())
+            {
+                Keyword k;
+                if (!Enum.TryParse<Keyword>(s, out k))
+                    throw new ArgumentException();
+                keywords.Add(k);
+            }
+
+            triggers = new List<TriggeredAbility>();
+            foreach (JSONArray abilityTemplate in template.getArray(4).asJSONArrays())
+            {
+                triggers.Add(new TriggeredAbility(abilityTemplate));
+            }
+        }
+
+        public override void Apply(EffectContext context)
+        {
+            
         }
     }
 
@@ -492,8 +616,12 @@ namespace MagicChessPuzzles
                 int numberFound = 0;
                 while (c >= '0' && c <= '9')
                 {
-                    Idx++;
                     numberFound = numberFound * 10 + c - '0';
+                    Idx++;
+
+                    if (Idx >= original.Length)
+                        break;
+
                     c = original[Idx];
                 }
                 if (startIdx < Idx)

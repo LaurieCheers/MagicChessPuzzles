@@ -6,7 +6,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 
-namespace LayeredImageGfx
+namespace DragonGfx
 {
     public enum Rotation90
     {
@@ -396,6 +396,11 @@ namespace LayeredImageGfx
             }
         }
 
+        public static bool Contains(this Rectangle rect, Vector2 pos)
+        {
+            return rect.Contains(new Point((int)pos.X, (int)pos.Y));
+        }
+
         public static Rotation90 getRotation(this JSONTable table, string name, Rotation90 defaultValue)
         {
             int angle = table.getInt(name, defaultValue.toInt());
@@ -460,7 +465,14 @@ namespace LayeredImageGfx
 
     public class Tooltip
     {
-        public static void DrawTooltip(SpriteBatch spriteBatch, SpriteFont font, LayeredImage bg, List<string> text, Vector2 origin)
+        public enum Align
+        {
+            LEFT,
+            RIGHT,
+            CENTER,
+        }
+
+        public static void DrawTooltip(SpriteBatch spriteBatch, SpriteFont font, LayeredImage bg, List<string> text, Vector2 origin, Align align)
         {
             float lineHeight = 0;
             float maxWidth = 0;
@@ -473,7 +485,13 @@ namespace LayeredImageGfx
                     lineHeight = lineSize.Y;
             }
 
-            Vector2 padding = new Vector2(4,2);
+            Vector2 padding = new Vector2(4, 2);
+
+            if (align == Align.RIGHT)
+                origin.X -= (maxWidth + padding.X * 2);
+            else if (align == Align.CENTER)
+                origin.X -= (int)((maxWidth + padding.X * 2)/2);
+
             bg.Draw(spriteBatch, new Rectangle((int)origin.X, (int)origin.Y, (int)(maxWidth + padding.X * 2), (int)(text.Count * lineHeight + padding.Y * 2)));
             Vector2 stringPos = origin + new Vector2(padding.X, padding.Y);
             foreach (string s in text)

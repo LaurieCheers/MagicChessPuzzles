@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework;
+using DragonGfx;
 
 namespace MagicChessPuzzles
 {
@@ -14,6 +15,7 @@ namespace MagicChessPuzzles
         adjacent,
         nearby,
         knight,
+        ahead,
         global
     };
 
@@ -44,13 +46,19 @@ namespace MagicChessPuzzles
         public List<string> description;
         public List<Card> upgrades;
         public List<ResourceAmount> upgradeCost;
+        public bool unlocked;
+        public bool defaultUnlocked;
+        public TriggerItemTest targetTest;
+        public string spellSet;
+
+        static Dictionary<string, Card> cardsById = new Dictionary<string, Card>();
 
         public Card(JSONTable template, ContentManager content)
         {
             name = template.getString("name");
             cost = ResourceAmount.createList(template.getJSON("cost", null));
             effect = Effect_Base.create(template.getArray("effect", null));
-            if (template.hasKey("ongoing"))
+            if (template.hasKey("ongoing") || template.hasKey("triggers"))
             {
                 ongoingType = new PermanentType(template, content);
             }
@@ -58,8 +66,10 @@ namespace MagicChessPuzzles
             smallFrameTexture = content.Load<Texture2D>("square");
             Enum.TryParse<TargetType>(template.getString("target", "none"), out targetType);
             frameTexture = content.Load<Texture2D>("cardframe_large");
-            description = LayeredImageGfx.Tooltip.StringToLines(template.getString("description", ""), Game1.font, 100);
+            description = DragonGfx.Tooltip.StringToLines(template.getString("description", ""), Game1.font, 100);
             upgradeCost = ResourceAmount.createList(template.getJSON("upgradeCost", null));
+            targetTest = TriggerItemTest.create(template.getArray("targetTest", null));
+            spellSet = template.getString("spellSet", null);
             
             foreach (JSONTable upgradeTemplate in template.getArray("upgrades", JSONArray.empty).asJSONTables())
             {
@@ -87,6 +97,15 @@ namespace MagicChessPuzzles
                     frameColor = Color.White;
                     break;
             }
+
+            string id = template.getString("id", null);
+            if (id != null)
+            {
+                cardsById.Add(id, this);
+            }
+
+            defaultUnlocked = template.getBool("unlocked", false);
+            unlocked = defaultUnlocked;
         }
 
         public static List<Card> load(JSONArray template, ContentManager content)
@@ -97,6 +116,32 @@ namespace MagicChessPuzzles
                 cards.Add(new Card(template.getJSON(Idx), content));
             }
             return cards;
+        }
+
+        public static Card get(string id)
+        {
+            return cardsById[id];
+        }
+
+        public void Draw(SpriteBatch spriteBatch, Rectangle frameRect, bool canPlay, bool selected)
+        {
+            Color offwhite = new Color(240, 240, 240);
+
+            if (canPlay)
+                Game1.activeCardBG.Draw(spriteBatch, frameRect, selected ? frameColor: frameColor.Multiply(offwhite));
+            else
+                spriteBatch.Draw(frameTexture, frameRect, Color.Gray);
+
+            DrawIcon(spriteBatch, image, new Vector2(frameRect.Left, frameRect.Top), canPlay);
+
+            spriteBatch.DrawString(Game1.font, name, new Vector2(frameRect.Left + image.Width, frameRect.Top), selected ? (canPlay ? Color.Yellow : Color.Red): Color.Black);
+            ResourceAmount.Draw(spriteBatch, cost, new Vector2(frameRect.Left + image.Width, frameRect.Top + 15));
+        }
+
+        void DrawIcon(SpriteBatch spriteBatch, Texture2D icon, Vector2 pos, bool canPlay)
+        {
+            Rectangle iconRect = new Rectangle((int)pos.X, (int)(pos.Y + 32.0f - icon.Height), icon.Width, icon.Height);
+            spriteBatch.Draw(icon, iconRect, canPlay ? Color.White : Color.Gray);
         }
 
         public bool HasANumber() { if (effect == null) return false; else return effect.HasANumber(); }

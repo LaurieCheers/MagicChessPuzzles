@@ -22,20 +22,18 @@ namespace MagicChessPuzzles
         fireproof = 4,
         attackproof = 8,
         flammable = 16,
+        corrosive = 32,
+        alive = 64,
+        fireform = 128,
+        intangible = 256,
     }
 
     public struct MinionStats
     {
-        public enum Range
-        {
-            adjacent,
-            nearby,
-            knight
-        };
-
         public int maxHealth;
         public int health;
         public int attack;
+        public int armor;
         public int move;
         public Range range;
         public Keyword keywords;
@@ -55,17 +53,24 @@ namespace MagicChessPuzzles
         public MinionStats stats;
         public string description;
         public string spells;
+        public List<ResourceAmount> attackCost;
+        public Texture2D onFireTexture;
 
         public MinionType(JSONTable template, ContentManager content)
             : base(template, content)
         {
             upkeep = ResourceAmount.createList(template.getJSON("upkeep", null));
+            attackCost = ResourceAmount.createList(template.getJSON("attackCost", null));
             whenDies = Effect_Base.create(template.getArray("whenDies", null));
+            string onFireTextureName = template.getString("onFireTexture", null);
+            if (onFireTextureName != null)
+                onFireTexture = content.Load<Texture2D>(onFireTextureName);
             stats.maxHealth = template.getInt("health", 1);
             stats.health = stats.maxHealth;
-            stats.attack = template.getInt("attack", 1);
+            stats.attack = template.getInt("attack", 0);
             stats.move = template.getInt("move", 1);
-            Enum.TryParse<MinionStats.Range>(template.getString("range", "adjacent"), out stats.range);
+            stats.armor = template.getInt("armor", 0);
+            Enum.TryParse<Range>(template.getString("range", "adjacent"), out stats.range);
             foreach (string abilityName in template.getArray("keywords", JSONArray.empty).asStrings())
             {
                 Keyword keyword;
@@ -94,15 +99,6 @@ namespace MagicChessPuzzles
                 return null;
 
             return types[name];
-        }
-
-        public static Property<TriggerItem> createProperty(JSONArray template, int Idx)
-        {
-            object obj = template.getProperty(Idx);
-            if (obj is string)
-                return new Property_Literal_TriggerItem(TriggerItem.create(MinionType.get((string)obj)));
-            else
-                return Property.create_TriggerItem(template.getArray(Idx));
         }
     }
 
@@ -149,7 +145,9 @@ namespace MagicChessPuzzles
         {
             mtype = newtype;
             type = newtype;
+            int damage = stats.maxHealth - stats.health;
             this.permanentStats = mtype.stats;
+            this.permanentStats.health = this.permanentStats.maxHealth - damage;
         }
 
         public override SpriteEffects spriteEffects
@@ -172,8 +170,13 @@ namespace MagicChessPuzzles
         public override void Draw(SpriteBatch spriteBatch, MinionAnimationBatch animation)
         {
             Vector2 pos = animation.GetPosition(this);
-            spriteBatch.Draw(type.texture, new Rectangle((int)pos.X, (int)pos.Y, type.texture.Width, type.texture.Height), null, Color.White, 0.0f, Vector2.Zero, isEnemy ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.0f);
-            //            spriteBatch.DrawString(Game1.font, type.name, pos, Color.Blue);
+            
+            Texture2D texture = mtype.texture;
+            if (stats.burning + stats.burningNextTurn > 0 && mtype.onFireTexture != null)
+                texture = mtype.onFireTexture;
+
+            spriteBatch.Draw(texture, new Rectangle((int)pos.X, (int)pos.Y, type.texture.Width, type.texture.Height), null, Color.White, 0.0f, Vector2.Zero, isEnemy ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.0f);
+
             string healthString = "" + this.stats.health;
             Vector2 healthStringSize = Game1.font.MeasureString(healthString);
             spriteBatch.DrawString(Game1.font, healthString, pos + new Vector2(32 - healthStringSize.X, type.texture.Height), Color.LightGreen);
@@ -194,9 +197,13 @@ namespace MagicChessPuzzles
                 else
                     tooltipText.Add("Attack " + permanentStats.attack);
             }
-            
+
+            if (stats.armor > 0)
+            {
+                tooltipText.Add("Armor " + stats.armor + " (take " + stats.armor + " less damage)");
+            }
             tooltipText.Add("Health " + stats.health + " (of " + stats.maxHealth + ")");
-            tooltipText.AddRange(LayeredImageGfx.Tooltip.StringToLines(mtype.description, Game1.font, 150));
+            tooltipText.AddRange(DragonGfx.Tooltip.StringToLines(mtype.description, Game1.font, 150));
 
             int burnAmount = stats.burning+stats.burningNextTurn;
             if (burnAmount > 0)
@@ -205,11 +212,16 @@ namespace MagicChessPuzzles
             }
 
             Vector2 popupPos = drawPos + new Vector2(35, -14);
-            LayeredImageGfx.Tooltip.DrawTooltip(spriteBatch, Game1.font, Game1.tooltipBG, tooltipText, popupPos);
+            DragonGfx.Tooltip.DrawTooltip(spriteBatch, Game1.font, Game1.tooltipBG, tooltipText, popupPos, DragonGfx.Tooltip.Align.LEFT);
         }
 
         public void TakeDamage(GameState gameState, int amount, DamageType type, Permanent attacker)
         {
+            if (type != DamageType.lightning && type != DamageType.acid)
+            {
+                amount -= stats.armor;
+            }
+
             if (amount <= 0)
                 return;
 
@@ -220,13 +232,36 @@ namespace MagicChessPuzzles
                     if (stats.hasKeyword(Keyword.fireproof))
                         return;
 
+                    if (stats.hasKeyword(Keyword.fireform))
+                    {
+                        // fireform creatures are healed by fire
+                        permanentStats.health += amount;
+                        if (permanentStats.health > permanentStats.maxHealth)
+                            permanentStats.health = permanentStats.maxHealth;
+                        return;
+                    }
+
                     if (stats.hasKeyword(Keyword.flammable))
                     {
                         permanentStats.burningNextTurn += amount;
                     }
                 }
 
-                stats.health -= amount;
+                if (type == DamageType.acid)
+                {
+                    stats.armor -= amount;
+                    if (stats.armor < 0)
+                    {
+                        stats.health += stats.armor; // reduce health by the (negative) armor
+                        stats.armor = 0;
+                    }
+                    permanentStats.armor = stats.armor;
+                }
+                else
+                {
+                    stats.health -= amount;
+                }
+
                 if (stats.health < 0)
                     stats.health = 0;
                 permanentStats.health = stats.health;
@@ -239,10 +274,12 @@ namespace MagicChessPuzzles
             }
         }
 
-        public void Attack(GameState gameState, Minion target, MinionAnimationBatch attackAnim, MinionAnimationBatch recoverAnim)
+        public void Attack(GameState gameState, Minion target, int bonusDamage, MinionAnimationBatch attackAnim, MinionAnimationBatch recoverAnim)
         {
             if (deleted)
                 return;
+
+            gameState.PayCost(mtype.attackCost);
 
             Vector2 basePos = drawPos;
             Vector2 targetPos = target.drawPos;
@@ -251,11 +288,16 @@ namespace MagicChessPuzzles
             attackAnim.AddAnimation(this, basePos, attackPos);
             recoverAnim.AddAnimation(this, attackPos, basePos);
 
+            DamageType damageType =
+                stats.hasKeyword(Keyword.corrosive)? DamageType.acid:
+                stats.hasKeyword(Keyword.fireform)? DamageType.fire:
+                DamageType.attack;
+
             gameState.HandleTriggers(new TriggerEvent(TriggerType.onAttack, this, target));
-            target.TakeDamage(gameState, stats.attack, DamageType.attack, this);
+            target.TakeDamage(gameState, stats.attack+bonusDamage, damageType, this);
         }
 
-        public bool CheckAttack(GameState gameState, Point attackPos, MinionAnimationBatch attack, MinionAnimationBatch recover)
+        public bool CheckAttack(GameState gameState, int bonusDamage, Point attackPos, MinionAnimationBatch attack, MinionAnimationBatch recover)
         {
             if (deleted)
                 return false;
@@ -264,34 +306,25 @@ namespace MagicChessPuzzles
             if (m == null || isEnemy == m.isEnemy || m.stats.health <= 0 || m.stats.hasKeyword(Keyword.attackproof))
                 return false;
 
-            Attack(gameState, m, attack, recover);
+            Attack(gameState, m, bonusDamage, attack, recover);
             return true;
         }
 
-        public bool CheckAttacks(GameState gameState, MinionAnimationBatch attack, MinionAnimationBatch recover, MinionAnimationSequence animation)
+        public bool CheckAttacks(GameState gameState, int bonusDamage, MinionAnimationBatch attack, MinionAnimationBatch recover, MinionAnimationSequence animation)
         {
-            if (deleted || stats.attack <= 0)
+            if (deleted || (stats.attack+bonusDamage) <= 0 || !gameState.CanPayCost(mtype.attackCost))
                 return false;
 
             if (attack.HasAnimation(this))
                 return false;
 
-            Point[] attackOffsets = GameState.adjacentOffsets;
-            switch (stats.range)
-            {
-                case MinionStats.Range.nearby:
-                    attackOffsets = GameState.nearbyOffsets;
-                    break;
-                case MinionStats.Range.knight:
-                    attackOffsets = GameState.knightRangeOffsets;
-                    break;
-            }
+            Point[] attackOffsets = gameState.getOffsetsForRange(stats.range);
 
-            if (stats.attack > 0)
+            if ((stats.attack+bonusDamage) > 0)
             {
                 foreach (Point p in attackOffsets)
                 {
-                    if (CheckAttack(gameState, new Point(position.X + p.X, position.Y + p.Y), attack, recover))
+                    if (CheckAttack(gameState, bonusDamage, new Point(position.X + p.X, position.Y + p.Y), attack, recover))
                     {
                         return true;
                     }
