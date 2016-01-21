@@ -123,25 +123,40 @@ namespace MagicChessPuzzles
             return cardsById[id];
         }
 
-        public void Draw(SpriteBatch spriteBatch, Rectangle frameRect, bool canPlay, bool selected)
+        public void Draw(SpriteBatch spriteBatch, Rectangle frameRect, CardState state, bool selected)
         {
             Color offwhite = new Color(240, 240, 240);
 
-            if (canPlay)
+            if (state == CardState.Playable || state == CardState.Targetable)
                 Game1.activeCardBG.Draw(spriteBatch, frameRect, selected ? frameColor: frameColor.Multiply(offwhite));
+            else if(state == CardState.BeingPlayed)
+                Game1.activeCardBG.Draw(spriteBatch, frameRect, frameColor);
             else
                 spriteBatch.Draw(frameTexture, frameRect, Color.Gray);
 
-            DrawIcon(spriteBatch, image, new Vector2(frameRect.Left, frameRect.Top), canPlay);
+            DrawIcon(spriteBatch, image, new Vector2(frameRect.Left, frameRect.Top), state);
 
-            spriteBatch.DrawString(Game1.font, name, new Vector2(frameRect.Left + image.Width, frameRect.Top), selected ? (canPlay ? Color.Yellow : Color.Red): Color.Black);
+            Color textColor;
+            if(state == CardState.BeingPlayed)
+            {
+                textColor = Color.Black;
+            }
+            else if(selected)
+            {
+                textColor = (state == CardState.Playable||state == CardState.Targetable)? Color.Yellow : Color.Red;
+            }
+            else
+            {
+                textColor = Color.Black;
+            }
+            spriteBatch.DrawString(Game1.font, name, new Vector2(frameRect.Left + image.Width, frameRect.Top), textColor);
             ResourceAmount.Draw(spriteBatch, cost, new Vector2(frameRect.Left + image.Width, frameRect.Top + 15));
         }
 
-        void DrawIcon(SpriteBatch spriteBatch, Texture2D icon, Vector2 pos, bool canPlay)
+        void DrawIcon(SpriteBatch spriteBatch, Texture2D icon, Vector2 pos, CardState state)
         {
             Rectangle iconRect = new Rectangle((int)pos.X, (int)(pos.Y + 32.0f - icon.Height), icon.Width, icon.Height);
-            spriteBatch.Draw(icon, iconRect, canPlay ? Color.White : Color.Gray);
+            spriteBatch.Draw(icon, iconRect, (state == CardState.Playable || state == CardState.Targetable || state == CardState.BeingPlayed) ? Color.White : Color.Gray);
         }
 
         public bool HasANumber() { if (effect == null) return false; else return effect.HasANumber(); }

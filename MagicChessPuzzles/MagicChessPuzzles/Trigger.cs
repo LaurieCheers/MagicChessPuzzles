@@ -10,6 +10,7 @@ namespace MagicChessPuzzles
     {
         onDamage,
         beforeCombat,
+        afterCombat,
         onAttack,
         onKill,
         onGain,
@@ -33,6 +34,19 @@ namespace MagicChessPuzzles
         public TriggerEvent(TriggerType type)
         {
             this.type = type;
+        }
+
+        public TriggerEvent(TriggerType type, Card c)
+        {
+            this.type = type;
+            this.source = TriggerItem.create(c);
+        }
+
+        public TriggerEvent(TriggerType type, Card c, TriggerItem target)
+        {
+            this.type = type;
+            this.source = TriggerItem.create(c);
+            this.target = target;
         }
 
         public TriggerEvent(TriggerType type, Permanent a)
@@ -171,7 +185,9 @@ namespace MagicChessPuzzles
 
         public TriggeredAbility(JSONArray template)
         {
-            Enum.TryParse<TriggerType>(template.getString(0), out type);
+            if (!Enum.TryParse<TriggerType>(template.getString(0), out type))
+                throw new ArgumentException("Unknown trigger type " + template.getString(0));
+
             if(template.Length > 2)
                 sourceTest = TriggerItemTest.create(template, 1);
             if(template.Length > 3)
@@ -237,6 +253,7 @@ namespace MagicChessPuzzles
                 case "TARGET": return new TriggerItemTest_TARGET();
                 case "isEnemy": return new TriggerItemTest_IsEnemy();
                 case "isAlly": return new TriggerItemTest_IsAlly();
+                case "hasAwakenType": return new TriggerItemTest_HasAwakenType();
                 case "isType":
                 case "ofType": return new TriggerItemTest_MinionType(template);
             }
@@ -277,6 +294,11 @@ namespace MagicChessPuzzles
             public override bool Test(TriggerItem item, EffectContext context) { return item.permanent.isEnemy == context.self.isEnemy; }
         }
 
+        class TriggerItemTest_HasAwakenType : TriggerItemTest
+        {
+            public override bool Test(TriggerItem item, EffectContext context) { return item.minionType != null && item.minionType.awakenType != null; }
+        }
+
         class TriggerItemTest_MinionType : TriggerItemTest
         {
             List<Property_TriggerItem> mtypes;
@@ -292,7 +314,7 @@ namespace MagicChessPuzzles
             {
                 foreach(Property_TriggerItem mtype in mtypes)
                 {
-                    if (item.permanent.type == mtype.get(context).minionType)
+                    if (item.minionType == mtype.get(context).minionType)
                         return true;
                 }
                 return false;

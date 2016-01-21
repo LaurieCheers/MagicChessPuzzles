@@ -128,6 +128,14 @@ namespace MagicChessPuzzles
                     return new Effect_Upgrade(template);
                 case "all":
                     return new Effect_All(template);
+                case "heal":
+                    return new Effect_Heal(template);
+                case "cast":
+                    return new Effect_Cast(template);
+                case "awaken":
+                    return new Effect_Awaken(template);
+                case "pattern":
+                    return new Effect_Pattern(template);
                 default:
                     throw new ArgumentException("Unknown effect type: " + effectType);
             }
@@ -234,7 +242,23 @@ namespace MagicChessPuzzles
             Minion m = context.target.minion;
             if (m != null)
             {
-                m.Transform(type.get(context).minionType);
+                m.Transform(type.get(context).minionType, context.self.isEnemy);
+            }
+        }
+    }
+
+    class Effect_Awaken : Effect_Base
+    {
+        public Effect_Awaken(JSONArray template)
+        {
+        }
+
+        public override void Apply(EffectContext context)
+        {
+            Minion m = context.target.minion;
+            if (m != null && m.mtype.awakenType != null)
+            {
+                m.Transform(m.mtype.awakenType, context.self.isEnemy);
             }
         }
     }
@@ -332,12 +356,21 @@ namespace MagicChessPuzzles
     class Effect_Area : Effect_Base
     {
         Range range;
+        TriggerItemTest test;
         Effect_Base effect;
 
         public Effect_Area(JSONArray template)
         {
             Enum.TryParse<Range>(template.getString(1), out range);
-            effect = Effect_Base.create(template.getArray(2));
+            if (template.Length == 3)
+            {
+                effect = Effect_Base.create(template.getArray(2));
+            }
+            else
+            {
+                test = TriggerItemTest.create(template.getArray(2));
+                effect = Effect_Base.create(template.getArray(3));
+            }
         }
 
         public override void Apply(EffectContext context)
@@ -345,12 +378,69 @@ namespace MagicChessPuzzles
             Point basePos = context.target.position;
             foreach (Point offset in context.gameState.getOffsetsForRange(range))
             {
-                effect.Apply(new EffectContext(context, new Point(basePos.X+offset.X, basePos.Y+offset.Y)));
+                EffectContext newContext = new EffectContext(context, new Point(basePos.X+offset.X, basePos.Y+offset.Y));
+                if (test == null || test.Test(newContext.target, context))
+                {
+                    effect.Apply(newContext);
+                }
             }
         }
 
         public override bool HasANumber() { return effect.HasANumber(); }
         public override bool HasAnArea() {return true;}
+    }
+
+    class Effect_Pattern : Effect_Base
+    {
+        TriggerItemTest test;
+        Effect_Base effect;
+        Property_int amount;
+
+        public Effect_Pattern(JSONArray template)
+        {
+            amount = new Property_Literal_int(template.getInt(1));
+            if (template.Length == 3)
+            {
+                effect = Effect_Base.create(template.getArray(2));
+            }
+            else
+            {
+                test = TriggerItemTest.create(template.getArray(2));
+                effect = Effect_Base.create(template.getArray(3));
+            }
+        }
+
+        static Point[] patternElements = new Point[] { new Point(-1, 0), new Point(1, 0), new Point(0, 1), new Point(0, -1),
+         new Point(1, -1), new Point(1, 1), new Point(-1, 1), new Point(-1, -1),
+        new Point(-2, 0), new Point(2, 0), new Point(0, 2), new Point(0, -2)};
+
+        public override void Apply(EffectContext context)
+        {
+            Point basePos = context.target.position;
+            int number = amount.get(context);
+            if (number % 2 == 1)
+            {
+                Apply(context, basePos);
+                number--;
+            }
+
+            for (int Idx = 0; Idx < number && Idx < patternElements.Count(); ++Idx)
+            {
+                Point offset = patternElements[Idx];
+                Apply(context, new Point(basePos.X + offset.X, basePos.Y + offset.Y));
+            }
+        }
+
+        public void Apply(EffectContext baseContext, Point pos)
+        {
+            EffectContext newContext = new EffectContext(baseContext, pos);
+            if (test == null || test.Test(newContext.target, baseContext))
+            {
+                effect.Apply(newContext);
+            }
+        }
+
+        public override bool HasANumber() { return amount is Property_Literal_int || effect.HasANumber(); }
     }
 
     class Effect_All : Effect_Base
@@ -405,6 +495,57 @@ namespace MagicChessPuzzles
         }
 
         public override bool HasANumber() { return amount is Property_Literal_int; }
+    }
+
+    class Effect_Heal : Effect_Base
+    {
+        Property_int amount;
+
+        public Effect_Heal(JSONArray template)
+        {
+            if(template.Length >= 2)
+                amount = new Property_Literal_int(template.getInt(1));
+        }
+
+        public override void Apply(EffectContext context)
+        {
+            Minion m = context.target.minion;
+            if (m != null)
+            {
+                if (amount == null)
+                    m.Heal(m.stats.maxHealth);
+                else
+                    m.Heal(amount.get(context));
+            }
+        }
+
+        public override bool HasANumber() { return amount is Property_Literal_int; }
+    }
+
+    class Effect_Cast : Effect_Base
+    {
+        Property_TriggerItem cardProperty;
+        Range range;
+
+        public Effect_Cast(JSONArray template)
+        {
+            cardProperty = Property_TriggerItem.create(template.getArray(1));
+            Enum.TryParse<Range>(template.getString(2), out range);
+        }
+
+        public override void Apply(EffectContext context)
+        {
+            Card card = cardProperty.get(context).card;
+            List<TriggerItem> positions = context.gameState.getItemsInRange(range, context.self.position);
+            foreach (TriggerItem possibleTarget in positions)
+            {
+                if(context.gameState.CanPlayCard(card, possibleTarget))
+                {
+                    context.gameState.ApplyCardEffect(card, (Minion)context.self, possibleTarget, context.animation);
+                    break;
+                }
+            }
+        }
     }
 
     class Effect_Rewrite_Add : Effect_Base

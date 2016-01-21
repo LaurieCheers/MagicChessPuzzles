@@ -27,7 +27,6 @@ namespace MagicChessPuzzles
         Dictionary<Card, TextChanges> cardTextChanges;
         LevelScript levelScript;
         List<Point> killed = new List<Point>();
-        List<WaitingTrigger> triggersResolving = new List<WaitingTrigger>();
         List<WaitingTrigger> triggersWaiting = new List<WaitingTrigger>();
         HashSet<string> validSpellSets = new HashSet<string>();
         public List<int> spawnIndices;
@@ -290,7 +289,7 @@ namespace MagicChessPuzzles
             foreach (ResourceAmount costRa in cost)
             {
                 if (!resources.ContainsKey(costRa.type) || resources[costRa.type] < costRa.amount)
-                    throw new InvalidCastException();
+                    throw new InvalidCastException(); // can't afford this!
 
                 resources[costRa.type] -= costRa.amount;
             }
@@ -302,8 +301,17 @@ namespace MagicChessPuzzles
 
             HandleTriggers(new TriggerEvent(TriggerType.beforeSpells));
             if(Card.get("wait") != c)
-                HandleTriggers(new TriggerEvent(TriggerType.beforeActualSpell));
+                HandleTriggers(new TriggerEvent(TriggerType.beforeActualSpell, c));
 
+            ApplyCardEffect(c, caster, target, animation);
+
+            HandleTriggers(new TriggerEvent(TriggerType.afterSpells));
+            if (c.effect != null || c.ongoingType != null)
+                HandleTriggers(new TriggerEvent(TriggerType.afterActualSpell, c));
+        }
+
+        public void ApplyCardEffect(Card c, Minion caster, TriggerItem target, MinionAnimationSequence animation)
+        {
             TextChanges changes = null;
             if (cardTextChanges.ContainsKey(c))
                 changes = cardTextChanges[c];
@@ -315,10 +323,6 @@ namespace MagicChessPuzzles
                 Point pos = target.position;
                 ongoingEffects[pos] = new Ongoing(c, pos);
             }
-
-            HandleTriggers(new TriggerEvent(TriggerType.afterSpells));
-            if (c.effect != null || c.ongoingType != null)
-                HandleTriggers(new TriggerEvent(TriggerType.afterActualSpell));
         }
 
         public void TurnEffects(MinionAnimationSequence animation)
@@ -402,7 +406,7 @@ namespace MagicChessPuzzles
             while(triggersWaiting.Count > 0)
             {
                 loopCount++;
-                triggersResolving = triggersWaiting;
+                List<WaitingTrigger> triggersResolving = triggersWaiting;
                 triggersWaiting = new List<WaitingTrigger>();
 
                 bool hasAttackTriggers = false;
@@ -433,8 +437,6 @@ namespace MagicChessPuzzles
                     triggersWaiting.Clear();
                 }
             }
-
-            triggersResolving.Clear();
         }
 
         public bool HasSpellSet(string spellType)
@@ -615,6 +617,9 @@ namespace MagicChessPuzzles
             }
 
             recover.SetInitialGameState(new GameState(this));
+
+            HandleTriggers(new TriggerEvent(TriggerType.afterCombat));
+            CleanUp(animation);
         }
 
         public TriggerItem Adapt(TriggerItem item)
@@ -703,6 +708,16 @@ namespace MagicChessPuzzles
             }
 
             return null;
+        }
+
+        public List<TriggerItem> getItemsInRange(Range range, Point origin)
+        {
+            List<TriggerItem> result = new List<TriggerItem>();
+            foreach (Point offset in getOffsetsForRange(range))
+            {
+                result.Add(getItemAt(new Point(offset.X+origin.X, offset.Y+origin.Y)));
+            }
+            return result;
         }
 
         public Point[] getOffsetsForRange(Range range)

@@ -47,6 +47,8 @@ namespace MagicChessPuzzles
         public static CardCatalog wizardCatalog;
         public static CardCatalog dynamicCatalog;
         public static CardCatalog[] catalogs;
+        public static UISelectionState selectionState;
+
         List<GameState> gameStates;
         LevelScreen levelScreen;
         GameState nextGameState;
@@ -160,6 +162,7 @@ namespace MagicChessPuzzles
                 GameState newState = new GameState(levelState.script);
                 gameStateOnSkip = newState.GetGameStateOnSkip();
                 gameStates.Add(newState);
+                selectionState = new UISelectionState(newState);
             }
         }
 
@@ -221,6 +224,7 @@ namespace MagicChessPuzzles
                 if (animation.finished)
                 {
                     gameStates.Add(nextGameState);
+                    selectionState = new UISelectionState(nextGameState);
                 }
                 else
                 {
@@ -241,20 +245,13 @@ namespace MagicChessPuzzles
                 else
                 {
                     GameState gameState = gameStates.Last();
+                    selectionState.ClearPlaying();
                     foreach (CardCatalog catalog in catalogs)
                     {
-                        catalog.Update(gameState);
-
-                        if (catalog.playing != null)
+                        catalog.Update(gameState, selectionState);
+                        if (selectionState.TryPlay(this, gameState))
                         {
-                            if (catalog.playTargetCard != null)
-                            {
-                                PlayTurn(catalog.playing, gameState.wizard, TriggerItem.create(catalog.playTargetCard));
-                            }
-                            else
-                            {
-                                PlayTurn(catalog.playing, gameState.wizard, gameState.getItemAt(catalog.playPosition));
-                            }
+                            break;
                         }
                     }
                 }
@@ -321,6 +318,7 @@ namespace MagicChessPuzzles
                 // rewind isn't really a spell like everything else
                 gameStates.RemoveAt(gameStates.Count - 1);
                 gameStateOnSkip = gameStates.Last().GetGameStateOnSkip();
+                selectionState = new UISelectionState(gameStates.Last());
             }
             else
             {
@@ -362,7 +360,7 @@ namespace MagicChessPuzzles
                 if (newSpell != null)
                 {
                     spriteBatch.DrawString(font, "New Spell Unlocked!", new Vector2(300, 50), Color.Yellow);
-                    newSpell.Draw(spriteBatch, new Rectangle(400 - 64, 100, 128, 32), true, false);
+                    newSpell.Draw(spriteBatch, new Rectangle(400 - 64, 100, 128, 32), CardState.Playable, false);
                     if (newSpell.spellSet != null)
                     {
                         spriteBatch.DrawString(font, "(Requires a " + newSpell.spellSet + ".)", new Vector2(400-64, 134), Color.Black);
@@ -411,8 +409,10 @@ namespace MagicChessPuzzles
 
             foreach (CardCatalog catalog in catalogs)
             {
-                catalog.Draw(spriteBatch, gameStates.Last());
+                catalog.Draw(spriteBatch, gameStates.Last(), selectionState);
             }
+
+            selectionState.Draw(spriteBatch);
 
             switch(gameState.gameEndState)
             {

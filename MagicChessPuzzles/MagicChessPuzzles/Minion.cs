@@ -55,6 +55,18 @@ namespace MagicChessPuzzles
         public string spells;
         public List<ResourceAmount> attackCost;
         public Texture2D onFireTexture;
+        string awakenTypeName;
+        MinionType awakenTypeCached;
+        public MinionType awakenType
+        {
+            get
+            {
+                if (awakenTypeName != null && awakenTypeCached == null)
+                    awakenTypeCached = MinionType.get(awakenTypeName);
+
+                return awakenTypeCached;
+            }
+        }
 
         public MinionType(JSONTable template, ContentManager content)
             : base(template, content)
@@ -62,6 +74,7 @@ namespace MagicChessPuzzles
             upkeep = ResourceAmount.createList(template.getJSON("upkeep", null));
             attackCost = ResourceAmount.createList(template.getJSON("attackCost", null));
             whenDies = Effect_Base.create(template.getArray("whenDies", null));
+            awakenTypeName = template.getString("awakenType", null);
             string onFireTextureName = template.getString("onFireTexture", null);
             if (onFireTextureName != null)
                 onFireTexture = content.Load<Texture2D>(onFireTextureName);
@@ -141,13 +154,14 @@ namespace MagicChessPuzzles
             stats = permanentStats;
         }
 
-        public void Transform(MinionType newtype)
+        public void Transform(MinionType newtype, bool isEnemy)
         {
             mtype = newtype;
             type = newtype;
             int damage = stats.maxHealth - stats.health;
             this.permanentStats = mtype.stats;
             this.permanentStats.health = this.permanentStats.maxHealth - damage;
+            this.isEnemy = isEnemy;
         }
 
         public override SpriteEffects spriteEffects
@@ -179,7 +193,7 @@ namespace MagicChessPuzzles
 
             string healthString = "" + this.stats.health;
             Vector2 healthStringSize = Game1.font.MeasureString(healthString);
-            spriteBatch.DrawString(Game1.font, healthString, pos + new Vector2(32 - healthStringSize.X, type.texture.Height), Color.LightGreen);
+            spriteBatch.DrawString(Game1.font, healthString, pos + new Vector2(32 - healthStringSize.X, type.texture.Height), Color.Red);
         }
 
         public override void DrawMouseOver(SpriteBatch spriteBatch)
@@ -215,6 +229,13 @@ namespace MagicChessPuzzles
             DragonGfx.Tooltip.DrawTooltip(spriteBatch, Game1.font, Game1.tooltipBG, tooltipText, popupPos, DragonGfx.Tooltip.Align.LEFT);
         }
 
+        public void Heal(int amount)
+        {
+            permanentStats.health += amount;
+            if (permanentStats.health > permanentStats.maxHealth)
+                permanentStats.health = permanentStats.maxHealth;
+        }
+
         public void TakeDamage(GameState gameState, int amount, DamageType type, Permanent attacker)
         {
             if (type != DamageType.lightning && type != DamageType.acid)
@@ -235,9 +256,7 @@ namespace MagicChessPuzzles
                     if (stats.hasKeyword(Keyword.fireform))
                     {
                         // fireform creatures are healed by fire
-                        permanentStats.health += amount;
-                        if (permanentStats.health > permanentStats.maxHealth)
-                            permanentStats.health = permanentStats.maxHealth;
+                        Heal(amount);
                         return;
                     }
 

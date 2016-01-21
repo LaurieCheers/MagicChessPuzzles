@@ -37,6 +37,8 @@ namespace MagicChessPuzzles
         {
             switch (template.getString(0))
             {
+                case "mul": return new Property_Mul(template);
+                case "add": return new Property_Add(template);
                 case "count": return new Property_Count(template.getArray(1));
                 case "amountOf": return new Property_AmountOf(ResourceType.get(template.getString(1)));
                 default: throw new ArgumentException("Invalid property " + template.getString(0));
@@ -54,6 +56,36 @@ namespace MagicChessPuzzles
                 return value;
             else
                 return context.textChanges.Apply_int(value);
+        }
+    }
+
+    class Property_Mul : Property_int
+    {
+        Property_int a;
+        Property_int b;
+        public Property_Mul(JSONArray template)
+        {
+            a = Property_int.create(template.getProperty(1));
+            b = Property_int.create(template.getProperty(2));
+        }
+        public override int get(EffectContext context)
+        {
+            return a.get(context) * b.get(context);
+        }
+    }
+
+    class Property_Add : Property_int
+    {
+        Property_int a;
+        Property_int b;
+        public Property_Add(JSONArray template)
+        {
+            a = Property_int.create(template.getProperty(1));
+            b = Property_int.create(template.getProperty(2));
+        }
+        public override int get(EffectContext context)
+        {
+            return a.get(context) + b.get(context);
         }
     }
 

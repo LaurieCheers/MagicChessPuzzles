@@ -8,19 +8,150 @@ using DragonGfx;
 
 namespace MagicChessPuzzles
 {
+    public enum CardState
+    {
+        Playable,
+        NotPlayable,
+        Targetable,
+        NotTargetable,
+        BeingPlayed,
+    }
+
+    public class UISelectionState
+    {
+        GameState playState;
+        Card choosingCardForCard;
+        Card choosingPositionForCard;
+        Card playing;
+        Point playPosition;
+        Card playTargetCard;
+        bool clickHandled;
+
+        public UISelectionState(GameState playState)
+        {
+            this.playState = playState;
+        }
+
+        public void ClearPlaying()
+        {
+            playing = null;
+            playTargetCard = null;
+            clickHandled = false;
+        }
+
+        public void ClickedPosition()
+        {
+            if (clickHandled)
+                return;
+
+            if (choosingCardForCard != null)
+            {
+                //choosingCardForCard = null;
+            }
+            else if (choosingPositionForCard != null)
+            {
+                Point targetPos = GameState.ScreenToGridPos(Game1.inputState.MousePos);
+                if (playState.CanPlayCard(choosingPositionForCard, playState.getItemAt(targetPos)))
+                {
+                    playing = choosingPositionForCard;
+                    playPosition = targetPos;
+                    playTargetCard = null;
+                    clickHandled = true;
+                }
+                choosingPositionForCard = null;
+            }
+        }
+
+        public void ClickedCard(Card card, bool isUpgrade)
+        {
+            if (clickHandled)
+                return;
+
+            clickHandled = true;
+
+            if (choosingCardForCard != null)
+            {
+                playing = choosingCardForCard;
+                playTargetCard = card;
+                choosingCardForCard = null;
+            }
+            else
+            {
+//                if (isUpgrade)
+//                    AddUpgrade(card);
+                if (card.targetType == TargetType.numeric_spell ||
+                        card.targetType == TargetType.area_spell)
+                {
+                    choosingCardForCard = card;
+                }
+                else if (card.targetType != TargetType.none)
+                {
+                    choosingPositionForCard = card;
+                }
+                else
+                {
+                    playing = card;
+                    playPosition = playState.wizard.position;
+                }
+            }
+        }
+
+        public CardState GetCardState(Card c)
+        {
+            if (choosingCardForCard != null)
+            {
+                bool canTarget = playState.CanPlayCard(choosingCardForCard, TriggerItem.create(c));
+                return canTarget ? CardState.Targetable : CardState.NotTargetable;
+            }
+            else if (choosingPositionForCard != null)
+            {
+                bool beingPlayed = (choosingPositionForCard == c);
+                return beingPlayed? CardState.BeingPlayed: CardState.NotPlayable;
+            }
+            else
+            {
+                bool canPlay = playState.CanPlayCard(c);
+                return canPlay ? CardState.Playable : CardState.NotPlayable;
+            }
+        }
+
+        public bool TryPlay(Game1 game, GameState gameState)
+        {
+            if (playing != null)
+            {
+                if (playTargetCard != null)
+                {
+                    game.PlayTurn(playing, gameState.wizard, TriggerItem.create(playTargetCard));
+                    return true;
+                }
+                else
+                {
+                    game.PlayTurn(playing, gameState.wizard, gameState.getItemAt(playPosition));
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void Draw(SpriteBatch spriteBatch)
+        {
+            if (choosingPositionForCard != null)
+            {
+                playState.DrawTargetCursor(spriteBatch, choosingPositionForCard, Game1.inputState.MousePos);
+            }
+        }
+    }
+
     public class CardCatalog
     {
         Rectangle rect;
         int cardWidth;
         int cardHeight;
+        
         int selectedCardIdx;
         bool selectedCardUpgrade;
+
         List<Card> cardList;
-        Card choosingCardForCard;
-        Card choosingPositionForCard;
-        public Card playing;
-        public Point playPosition;
-        public Card playTargetCard;
         public Dictionary<Card, int> upgrades;
 
         public CardCatalog(Rectangle rect, Dictionary<Card, int> upgrades)
@@ -41,10 +172,8 @@ namespace MagicChessPuzzles
             this.upgrades = upgrades;
         }
 
-        public void Update(GameState playState)
+        public void Update(GameState playState, UISelectionState selectionState)
         {
-            playing = null;
-            playTargetCard = null;
             selectedCardUpgrade = false;
 
             if (cardList == null || !rect.Contains(Game1.inputState.MousePos))
@@ -88,42 +217,13 @@ namespace MagicChessPuzzles
 
             if (Game1.inputState.WasMouseLeftJustPressed())
             {
-                if (choosingCardForCard != null)
+                if (selectedCardIdx != -1)
                 {
-                    if (selectedCardIdx != -1)
-                    {
-                        playing = choosingCardForCard;
-                        playTargetCard = cardList[selectedCardIdx];
-                    }
-                    choosingCardForCard = null;
+                    selectionState.ClickedCard(cardList[selectedCardIdx], selectedCardUpgrade);
                 }
-                else if (choosingPositionForCard != null)
+                else
                 {
-                    Point targetPos = GameState.ScreenToGridPos(Game1.inputState.MousePos);
-                    if (playState.CanPlayCard(choosingPositionForCard, playState.getItemAt(targetPos)))
-                    {
-                        playing = choosingPositionForCard;
-                        playPosition = targetPos;
-                        playTargetCard = null;
-                    }
-                    choosingPositionForCard = null;
-                }
-                else if (selectedCardIdx != -1)
-                {
-                    Card baseCardClicked = cardList[selectedCardIdx];
-                    Card cardClicked = GetUpgrade(baseCardClicked);
-                    if (selectedCardUpgrade)
-                        AddUpgrade(cardClicked);
-                    else if (cardClicked.targetType == TargetType.numeric_spell ||
-                            cardClicked.targetType == TargetType.area_spell)
-                        choosingCardForCard = cardClicked;
-                    else if (cardClicked.targetType != TargetType.none)
-                        choosingPositionForCard = cardClicked;
-                    else
-                    {
-                        playing = cardClicked;
-                        playPosition = playState.wizard.position;
-                    }
+                    selectionState.ClickedPosition();
                 }
             }
         }
@@ -164,7 +264,7 @@ namespace MagicChessPuzzles
             }
         }
 
-        public void Draw(SpriteBatch spriteBatch, GameState playState)
+        public void Draw(SpriteBatch spriteBatch, GameState playState, UISelectionState selectionState)
         {
             int cardListIdx = 0;
             int visibleCardIdx = 0;
@@ -184,19 +284,11 @@ namespace MagicChessPuzzles
                 Card c = GetUpgrade(baseCard);
                 bool canUpgrade = CanUpgrade(baseCard);
 
-                bool canPlay;
-                if (choosingCardForCard != null)
-                {
-                    canPlay = playState.CanPlayCard(choosingCardForCard, TriggerItem.create(baseCard));
-                }
-                else
-                {
-                    canPlay = playState.CanPlayCard(c);
-                }
+                CardState state = selectionState.GetCardState(c);
 
                 Rectangle frameRect = new Rectangle(rect.Left, rect.Top + visibleCardIdx * cardHeight, c.frameTexture.Width - (canUpgrade ? 16 : 0), cardHeight);
 
-                c.Draw(spriteBatch, frameRect, canPlay, (selectedCardIdx == cardListIdx));
+                c.Draw(spriteBatch, frameRect, state, (selectedCardIdx == cardListIdx));
 
                 if (canUpgrade)
                 {
@@ -229,11 +321,6 @@ namespace MagicChessPuzzles
 
                 visibleCardIdx++;
                 cardListIdx++;
-            }
-
-            if (choosingPositionForCard != null)
-            {
-                playState.DrawTargetCursor(spriteBatch, choosingPositionForCard, Game1.inputState.MousePos);
             }
         }
     }
